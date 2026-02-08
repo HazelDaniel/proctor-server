@@ -1,0 +1,23 @@
+/**
+ * This module implements the collaboration features using Yjs and WebSockets:
+    connect to: ws://HOST:PORT/collab?docId=...&toolType=schema-design&token=USER_ID
+    sync state
+    broadcast updates
+    awareness messages
+    persist updates
+    periodic snapshots
+    eviction when idle
+ */
+import { Module } from '@nestjs/common';
+import { DocumentRegistry } from 'src/document-registry/document-registry.service';
+import { ToolPersistenceService } from 'src/toolpersistence/toolpersistence.service';
+import { YjsGateway } from 'src/tools/yjs-gateway';
+import { ToolModule } from 'src/tools/tools.module';
+import { ToolinstanceModule } from 'src/toolinstance/toolinstance.module';
+
+@Module({
+  imports: [ToolModule, ToolinstanceModule],
+  providers: [ToolPersistenceService, DocumentRegistry, YjsGateway],
+  exports: [DocumentRegistry, ToolModule, ToolinstanceModule],
+})
+export class CollaborationModule {}

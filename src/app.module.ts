@@ -4,9 +4,10 @@ import { AppService } from './app.service';
 import { DbModule } from './db/db.module';
 import { ConfigModule } from '@nestjs/config';
 import { z } from 'zod';
-import { ToolModule } from './tools/tools.module';
-// import { DocumentRegistryService } from './document-registry/document-registry.service';
-import { DocumentRegistry } from './document-registry/document-registry.service';
+import { ToolPersistenceService } from './toolpersistence/toolpersistence.service';
+import { CollaborationModule } from './collaboration/collaboration.module';
+import { AuthModule } from './auth/auth.module';
+import { AppGraphqlModule } from './api/v1/graphql/graphql.module';
 
 const envSchema = z.object({
   DATABASE_URL: z.url(),
@@ -25,9 +26,11 @@ const envSchema = z.object({
         return result.data;
       },
     }),
-    ToolModule,
+    CollaborationModule,
+    AppGraphqlModule,
+    AuthModule,
   ],
   controllers: [AppController],
-  providers: [AppService, DocumentRegistry],
+  providers: [AppService, ToolPersistenceService],
 })
 export class AppModule {}

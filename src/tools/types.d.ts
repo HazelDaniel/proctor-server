@@ -126,5 +126,19 @@ interface ActiveDocument {
   toolType: string;
   refCount: number;
   lastAccessed: number;
+  awareness: Awareness;
+
   seq: number;
+  lastSnapshotSeq: number;
+  lastSnapshotTime: number;
+
+  // queue state
+  chain: Promise<void>;
+  pendingUpdates: number;
+  destroy: () => void;
 }
+
+export type DocSession = {
+  doc: Doc;
+  awareness: awarenessProtocol.Awareness;
+};

@@ -1,0 +1,30 @@
+type ToolInstance {
+  id: ID!
+  toolType: String!
+  docId: ID!
+  createdAt: String!
+}
+
+type ValidationError {
+  path: String!
+  message: String!
+}
+
+type ValidationResult {
+  valid: Boolean!
+  errors: [ValidationError!]!
+}
+
+type CreateToolInstanceResult {
+  instance: ToolInstance!
+}
+
+type Query {
+  toolInstances(toolType: String): [ToolInstance!]!
+}
+
+type Mutation {
+  createToolInstance(toolType: String!): CreateToolInstanceResult!
+  validateToolInstance(instanceId: ID!): ValidationResult!
+  compileToolInstance(instanceId: ID!): String
+}
