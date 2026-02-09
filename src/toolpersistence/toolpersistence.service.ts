@@ -1,5 +1,7 @@
 // Collaboration Layer: Persistence service (fixed and() usage + dynamic yjs import)
 import { Injectable } from '@nestjs/common';
+import { and, lt } from 'drizzle-orm';
+import { lte } from 'drizzle-orm';
 import { eq, gt, desc } from 'drizzle-orm';
 import { db } from 'src/db/db.provider';
 import {
@@ -11,6 +13,8 @@ import type { Doc } from 'yjs' with { 'resolution-mode': 'import' };
 
 @Injectable()
 export class ToolPersistenceService {
+  private readonly SNAPSHOT_COMPACTION_THRESHOLD: number = 5;
+
   async loadDocument(docId: string): Promise<{ doc: Doc; seq: number } | null> {
     const snapshot = await db
       .select()
@@ -76,6 +80,54 @@ export class ToolPersistenceService {
       docId,
       seq,
       snapshot: Buffer.from(snapshot),
+    });
+
+    await this.compactAfterSnapshot(
+      docId,
+      seq,
+      this.SNAPSHOT_COMPACTION_THRESHOLD,
+    );
+  }
+
+  /**
+   * After writing a snapshot at sequence S for docId:
+      delete all document_updates with seq <= S (they’re covered by the snapshot)
+      keep only the latest N snapshots (configurable), delete older ones
+   */
+  async compactAfterSnapshot(
+    docId: string,
+    snapshotSeq: number,
+    keepSnapshots = 5,
+  ) {
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(documentUpdates)
+        .where(
+          and(
+            eq(documentUpdates.docId, docId),
+            lte(documentUpdates.seq, snapshotSeq),
+          ),
+        );
+
+      const keep = await tx
+        .select({ seq: documentSnapshots.seq })
+        .from(documentSnapshots)
+        .where(eq(documentSnapshots.docId, docId))
+        .orderBy(desc(documentSnapshots.seq))
+        .limit(keepSnapshots);
+
+      if (keep.length < keepSnapshots) return;
+
+      const cutoffSeq = keep[keep.length - 1].seq;
+
+      await tx
+        .delete(documentSnapshots)
+        .where(
+          and(
+            eq(documentSnapshots.docId, docId),
+            lt(documentSnapshots.seq, cutoffSeq),
+          ),
+        );
     });
   }
 }
