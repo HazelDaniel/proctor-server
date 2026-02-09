@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { and, inArray } from 'drizzle-orm';
+import { and, inArray, isNull } from 'drizzle-orm';
 import { eq } from 'drizzle-orm';
 import { db } from 'src/db/db.provider';
 import {
+  documents,
   toolInstanceMembers,
   toolInstances,
 } from 'src/db/drivers/drizzle/schema';
@@ -24,18 +25,25 @@ export class ToolInstanceService {
     return db.select().from(toolInstances);
   }
 
-  async listForUser(userId: string, toolType?: string) {
-    // owned
+  async listForUser(
+    userId: string,
+    toolType?: string,
+    includeArchived: boolean = false,
+  ) {
+    const ownedWhere = toolType
+      ? and(
+          eq(toolInstances.ownerUserId, userId),
+          eq(toolInstances.toolType, toolType),
+        )
+      : eq(toolInstances.ownerUserId, userId);
+
     const owned = await db
       .select()
       .from(toolInstances)
       .where(
-        toolType
-          ? and(
-              eq(toolInstances.ownerUserId, userId),
-              eq(toolInstances.toolType, toolType),
-            )
-          : eq(toolInstances.ownerUserId, userId),
+        includeArchived
+          ? ownedWhere
+          : and(ownedWhere, isNull(toolInstances.archivedAt)),
       );
 
     // member
@@ -190,5 +198,46 @@ export class ToolInstanceService {
       .limit(1);
 
     return instance ?? null;
+  }
+
+  async archive(instanceId: string, ownerUserId: string) {
+    const inst = await this.getById(instanceId);
+    if (!inst) throw new Error('Tool instance not found');
+    if (inst.ownerUserId !== ownerUserId) throw new Error('Forbidden');
+
+    await db
+      .update(toolInstances)
+      .set({ archivedAt: new Date() })
+      .where(eq(toolInstances.id, instanceId));
+
+    return true;
+  }
+
+  async unarchive(instanceId: string, ownerUserId: string) {
+    const inst = await this.getById(instanceId);
+    if (!inst) throw new Error('Tool instance not found');
+    if (inst.ownerUserId !== ownerUserId) throw new Error('Forbidden');
+
+    await db
+      .update(toolInstances)
+      .set({ archivedAt: null })
+      .where(eq(toolInstances.id, instanceId));
+
+    return true;
+  }
+
+  async delete(instanceId: string, ownerUserId: string) {
+    const inst = await this.getById(instanceId);
+    if (!inst) throw new Error('Tool instance not found');
+    if (inst.ownerUserId !== ownerUserId) throw new Error('Forbidden');
+
+    // Hard delete tool instance (invites/members cascade via FK)
+    await db.delete(toolInstances).where(eq(toolInstances.id, instanceId));
+
+    // Also delete the document row so snapshots/updates cascade
+    // (Assumes documentSnapshots/documentUpdates reference documents with ON DELETE CASCADE)
+    await db.delete(documents).where(eq(documents.id, inst.docId));
+
+    return true;
   }
 }

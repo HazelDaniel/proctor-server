@@ -76,6 +76,7 @@ export const toolInstances = pgTable('tool_instances', {
   createdAt: timestamp('created_at', { withTimezone: true })
     .defaultNow()
     .notNull(),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
 });
 
 export const users = pgTable(

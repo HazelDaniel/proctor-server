@@ -205,4 +205,34 @@ export class ToolInstanceResolver {
       this.documentRegistry.release(inst.docId);
     }
   }
+
+  @Mutation(() => Boolean)
+  async archiveToolInstance(
+    @Args('instanceId') instanceId: string,
+    @CurrentUserId() userId: string | null,
+  ) {
+    await Promise.resolve();
+    if (!userId) throw new Error('Unauthorized');
+    return this.toolInstanceService.archive(instanceId, userId);
+  }
+
+  @Mutation(() => Boolean)
+  async unarchiveToolInstance(
+    @Args('instanceId') instanceId: string,
+    @CurrentUserId() userId: string | null,
+  ) {
+    await Promise.resolve();
+    if (!userId) throw new Error('Unauthorized');
+    return this.toolInstanceService.unarchive(instanceId, userId);
+  }
+
+  @Mutation(() => Boolean)
+  async deleteToolInstance(
+    @Args('instanceId') instanceId: string,
+    @CurrentUserId() userId: string | null,
+  ) {
+    await Promise.resolve();
+    if (!userId) throw new Error('Unauthorized');
+    return this.toolInstanceService.delete(instanceId, userId);
+  }
 }

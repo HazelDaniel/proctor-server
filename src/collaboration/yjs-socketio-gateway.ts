@@ -8,9 +8,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import type { DefaultEventsMap, Server, Socket } from 'socket.io';
-import type { Doc } from 'yjs' with {
-  'resolution-mode': 'import',
-};
+import type { Doc } from 'yjs' with { 'resolution-mode': 'import' };
 
 import type * as AwarenessNS from 'y-protocols/awareness' with {
   'resolution-mode': 'import',
@@ -61,15 +59,42 @@ export class YjsSocketIoGateway
     private readonly instances: ToolInstanceService,
   ) {}
 
+  // ---- Feature 2: awareness batching state ----
+  private readonly AWARENESS_FLUSH_MS = 25;
+  private awarenessTimers = new Map<string, NodeJS.Timeout | null>();
+  private latestAwarenessPayload = new Map<string, Uint8Array>();
+
+  // NOTE: you already keep awareness in registry; this map is used by your current design.
   private awarenessByDoc = new Map<string, AwarenessNS.Awareness>();
+
+  // Keep only what we actually need for cleanup. We no longer attach doc update broadcasters.
   private attachedByDoc = new Map<
     string,
-    { doc: Doc; onUpdate: any; onAwareness: any }
+    { doc: Doc; onAwareness: (...args: any[]) => void }
   >();
+
+  private queueAwareness(docId: string, senderId: string, payload: Uint8Array) {
+    this.latestAwarenessPayload.set(docId, payload);
+
+    if (this.awarenessTimers.get(docId)) return;
+
+    const t = setTimeout(() => {
+      this.awarenessTimers.set(docId, null);
+
+      const p = this.latestAwarenessPayload.get(docId);
+      if (!p) return;
+
+      // Echo suppression: exclude sender (best-effort: last sender in window)
+      this.server.to(ROOM(docId)).except(senderId).emit('yjs:awareness', p);
+    }, this.AWARENESS_FLUSH_MS);
+
+    this.awarenessTimers.set(docId, t);
+  }
 
   async handleConnection(client: ClientSocket) {
     // Expect client handshake auth: { instanceId, token }
     const { encoding, sync: syncProtocol } = await loadYjsProtocols();
+
     const instanceId = String(client.handshake.auth?.instanceId ?? '');
     const token = String(client.handshake.auth?.token ?? '');
 
@@ -102,8 +127,9 @@ export class YjsSocketIoGateway
     const acquisition = await this.docs.acquire(docId, toolType);
 
     // Ensure one Awareness instance per doc in memory
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    let awareness: AwarenessNS.Awareness = acquisition.awareness;
+    let awareness: AwarenessNS.Awareness =
+      acquisition.awareness as AwarenessNS.Awareness;
+
     type AwarenessUpdate = {
       added: number[];
       updated: number[];
@@ -111,22 +137,20 @@ export class YjsSocketIoGateway
     };
 
     if (!awareness) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-      awareness = new awarenessProtocol.Awareness(acquisition.doc);
+      // If this can happen, registry should ideally create awareness during loadOrCreate.
+      awareness = new awarenessProtocol.Awareness(acquisition.doc as Doc);
+      this.awarenessByDoc.set(docId, awareness);
+    } else {
+      // Keep the map in sync with the session so onAwareness can resolve it reliably.
       this.awarenessByDoc.set(docId, awareness);
     }
 
-    // Attach broadcasters once per doc
+    // Feature 2 change:
+    // - DO NOT attach doc.on('update') broadcaster (it causes echo and duplicates)
+    // - Only attach awareness broadcaster (optional). We can keep it for server-origin awareness updates.
     if (!this.attachedByDoc.has(docId)) {
-      const { encoding, sync: syncProtocol } = await loadYjsProtocols();
-      const onDocUpdate = (update: Uint8Array) => {
-        const enc = encoding.createEncoder();
-        encoding.writeVarUint(enc, MSG_SYNC);
-        syncProtocol.writeUpdate(enc, update);
-        this.server
-          .to(ROOM(docId))
-          .emit('yjs:sync', encoding.toUint8Array(enc));
-      };
+      const { encoding } = await loadYjsProtocols();
+
       const onAwarenessUpdate = ({
         added,
         updated,
@@ -141,69 +165,26 @@ export class YjsSocketIoGateway
         const enc = encoding.createEncoder();
         encoding.writeVarUint(enc, MSG_AWARENESS);
         encoding.writeVarUint8Array(enc, update);
+
+        // This is awareness (ephemeral). Broadcasting to all is OK; client batching is for incoming events.
         this.server
           .to(ROOM(docId))
           .emit('yjs:awareness', encoding.toUint8Array(enc));
       };
 
-      (acquisition.doc as Doc).on('update', onDocUpdate);
       awareness.on('update', onAwarenessUpdate);
 
       this.attachedByDoc.set(docId, {
         doc: acquisition.doc as Doc,
-        onUpdate: onDocUpdate,
         onAwareness: onAwarenessUpdate,
       });
     }
-    // if (!this.attachedByDoc.has(docId)) {
-    //   const {
-    //     awareness,
-    //     encoding,
-    //     sync: syncProtocol,
-    //   } = await loadYjsProtocols();
-    //   const onDocUpdate = (update: Uint8Array, origin: any) => {
-    //     // origin will be the socket that applied it (we pass it in readSyncMessage)
-    //     const enc = encoding.createEncoder();
-    //     encoding.writeVarUint(enc, MSG_SYNC);
-    //     syncProtocol.writeUpdate(enc, update);
-    //     const payload = encoding.toUint8Array(enc);
-
-    //     // broadcast to room
-    //     this.server.to(ROOM(docId)).emit('yjs:sync', payload);
-    //   };
-
-    //   const onAwarenessUpdate = (
-    //     { added, updated, removed }: any,
-    //     origin: any,
-    //   ) => {
-    //     const changed = added.concat(updated, removed);
-    //     const update = awarenessProtocol.encodeAwarenessUpdate(awareness!, changed);
-
-    //     const enc = encoding.createEncoder();
-    //     encoding.writeVarUint(enc, MSG_AWARENESS);
-    //     encoding.writeVarUint8Array(enc, update);
-
-    //     this.server
-    //       .to(ROOM(docId))
-    //       .emit('yjs:awareness', encoding.toUint8Array(enc));
-    //   };
-
-    //   doc.on('update', onDocUpdate);
-    //   awareness.on('update', onAwarenessUpdate);
-
-    //   this.attachedByDoc.set(docId, {
-    //     doc,
-    //     onUpdate: onDocUpdate,
-    //     onAwareness: onAwarenessUpdate,
-    //   });
-    // }
 
     // Initial sync step 1 (to this client only)
     {
       const enc = encoding.createEncoder();
       encoding.writeVarUint(enc, MSG_SYNC);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-      syncProtocol.writeSyncStep1(enc, acquisition.doc);
+      syncProtocol.writeSyncStep1(enc, acquisition.doc as Doc);
       client.emit('yjs:sync', encoding.toUint8Array(enc));
     }
 
@@ -225,24 +206,21 @@ export class YjsSocketIoGateway
   async handleDisconnect(client: ClientSocket) {
     const docId = String(client.data.docId ?? '');
     if (!docId) return;
-
-    await Promise.resolve(); // workaround
+    await Promise.resolve();
 
     this.docs.release(docId);
 
-    // If room is empty, we can cleanup awareness/broadcasters
+    // If room is empty, we can cleanup awareness/broadcasters + batching state
     const room = this.server.sockets.adapter.rooms.get(ROOM(docId));
     const roomSize: number = room ? room.size : 0;
 
     if (roomSize === 0) {
       const attached = this.attachedByDoc.get(docId);
       const session = this.docs.getSession(docId);
-      if (attached && session) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-        attached.doc.off('update', attached.onUpdate);
+
+      if (attached && session?.awareness) {
         (session.awareness as AwarenessNS.Awareness).off(
           'update',
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
           attached.onAwareness,
         );
         this.attachedByDoc.delete(docId);
@@ -253,6 +231,11 @@ export class YjsSocketIoGateway
         awareness.destroy();
         this.awarenessByDoc.delete(docId);
       }
+
+      const t = this.awarenessTimers.get(docId);
+      if (t) clearTimeout(t);
+      this.awarenessTimers.delete(docId);
+      this.latestAwarenessPayload.delete(docId);
     }
   }
 
@@ -264,9 +247,10 @@ export class YjsSocketIoGateway
     const docId = String(client.data.docId ?? '');
     const toolType = String(client.data.toolType ?? '');
     if (!docId || !toolType) return;
-    const { encoding, decoding, sync: syncProtocol } = await loadYjsProtocols();
 
+    const { encoding, decoding, sync: syncProtocol } = await loadYjsProtocols();
     const acquisition = await this.docs.acquire(docId, toolType);
+
     try {
       const u8 = data instanceof Uint8Array ? data : new Uint8Array(data);
       const dec = decoding.createDecoder(u8);
@@ -277,13 +261,15 @@ export class YjsSocketIoGateway
       const enc = encoding.createEncoder();
       encoding.writeVarUint(enc, MSG_SYNC);
 
-      // IMPORTANT: pass origin as client to prevent echo confusion
-      syncProtocol.readSyncMessage(dec, enc, acquisition.doc, client);
+      // Apply to doc and possibly generate a reply for sender
+      syncProtocol.readSyncMessage(dec, enc, acquisition.doc as Doc, client);
 
-      // If response contains more than just the header, respond to sender only
       if (encoding.length(enc) > 1) {
         client.emit('yjs:sync', encoding.toUint8Array(enc));
       }
+
+      // ---- Feature 2: echo suppression (broadcast to others only) ----
+      this.server.to(ROOM(docId)).except(client.id).emit('yjs:sync', u8);
     } finally {
       this.docs.release(docId);
     }
@@ -296,7 +282,6 @@ export class YjsSocketIoGateway
   ) {
     const docId = String(client.data.docId ?? '');
     if (!docId) return;
-    await Promise.resolve();
 
     const { decoding } = await loadYjsProtocols();
 
@@ -310,6 +295,9 @@ export class YjsSocketIoGateway
     if (msgType !== MSG_AWARENESS) return;
 
     const update = decoding.readVarUint8Array(dec);
+
     awarenessProtocol.applyAwarenessUpdate(awareness, update, client);
+
+    this.queueAwareness(docId, client.id, u8);
   }
 }
