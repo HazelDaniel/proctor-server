@@ -76,10 +76,6 @@ export class ToolInstanceService {
     return { id, toolType, docId, ownerUserId };
   }
 
-  async addMember(instanceId: string, userId: string) {
-    await db.insert(toolInstanceMembers).values({ instanceId, userId });
-  }
-
   async canAccess(instanceId: string, userId: string): Promise<boolean> {
     const rows = await db
       .select({ id: toolInstances.id })
@@ -123,6 +119,67 @@ export class ToolInstanceService {
       toolType: inst.toolType,
       ownerUserId: inst.ownerUserId,
     };
+  }
+
+  async isOwner(instanceId: string, userId: string): Promise<boolean> {
+    const rows = await db
+      .select({ ownerUserId: toolInstances.ownerUserId })
+      .from(toolInstances)
+      .where(eq(toolInstances.id, instanceId))
+      .limit(1);
+
+    return rows.length > 0 && rows[0].ownerUserId === userId;
+  }
+
+  async transferOwnership(
+    instanceId: string,
+    currentOwnerId: string,
+    newOwnerUserId: string,
+  ) {
+    const inst = await this.getById(instanceId);
+    if (!inst) throw new Error('Tool instance not found');
+    if (inst.ownerUserId !== currentOwnerId) throw new Error('Forbidden');
+
+    // ensure new owner can access after transfer (make them a member if needed)
+    if (newOwnerUserId !== currentOwnerId) {
+      const isMember = await this.canAccess(instanceId, newOwnerUserId);
+      if (!isMember) {
+        await this.addMember(instanceId, newOwnerUserId);
+      }
+    }
+
+    await db
+      .update(toolInstances)
+      .set({ ownerUserId: newOwnerUserId })
+      .where(eq(toolInstances.id, instanceId));
+
+    return { ...inst, ownerUserId: newOwnerUserId };
+  }
+
+  async addMember(instanceId: string, userId: string): Promise<boolean> {
+    // idempotent insert: try/catch on unique constraint
+    try {
+      await db.insert(toolInstanceMembers).values({ instanceId, userId });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async removeMember(instanceId: string, userId: string): Promise<boolean> {
+    const inst = await this.getById(instanceId);
+    if (!inst) return false;
+    if (inst.ownerUserId === userId) return false;
+
+    await db
+      .delete(toolInstanceMembers)
+      .where(
+        and(
+          eq(toolInstanceMembers.instanceId, instanceId),
+          eq(toolInstanceMembers.userId, userId),
+        ),
+      );
+    return true;
   }
 
   async getById(instanceId: string) {

@@ -1,3 +1,4 @@
+import { uniqueIndex } from 'drizzle-orm/pg-core';
 import { index } from 'drizzle-orm/pg-core';
 import {
   pgTable,
@@ -76,6 +77,50 @@ export const toolInstances = pgTable('tool_instances', {
     .defaultNow()
     .notNull(),
 });
+
+export const users = pgTable(
+  'users',
+  {
+    id: uuid('id').primaryKey(),
+    email: text('email').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => ({
+    emailUq: uniqueIndex('users_email_uq').on(t.email),
+  }),
+);
+
+export const toolInstanceInvites = pgTable(
+  'tool_instance_invites',
+  {
+    id: uuid('id').primaryKey(),
+    instanceId: uuid('instance_id')
+      .notNull()
+      .references(() => toolInstances.id, { onDelete: 'cascade' }),
+    invitedEmail: text('invited_email').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    status: text('status').notNull(),
+    createdByUserId: text('created_by_user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    acceptedByUserId: text('accepted_by_user_id'),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokedByUserId: text('revoked_by_user_id'),
+  },
+  (t) => ({
+    tokenHashUq: uniqueIndex('tool_instance_invites_token_hash_uq').on(
+      t.tokenHash,
+    ),
+    instIdx: index('tool_instance_invites_instance_idx').on(t.instanceId),
+    emailIdx: index('tool_instance_invites_email_idx').on(t.invitedEmail),
+    statusIdx: index('tool_instance_invites_status_idx').on(t.status),
+  }),
+);
 
 export const toolInstanceMembers = pgTable(
   'tool_instance_members',

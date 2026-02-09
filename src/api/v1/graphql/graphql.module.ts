@@ -9,11 +9,14 @@ import { GraphQLContext } from './types';
 import { AuthService } from 'src/auth/auth.service';
 import type { Request } from 'express';
 import { AuthModule } from 'src/auth/auth.module';
+import { InvitesService } from 'src/invites/invites.service';
+import { UsersModule } from 'src/users/users.module';
 
 @Module({
   imports: [
     ToolModule,
     CollaborationModule,
+    UsersModule,
     ToolinstanceModule,
     GraphQLModule.forRootAsync<ApolloDriverConfig>({
       driver: ApolloDriver,
@@ -47,6 +50,6 @@ import { AuthModule } from 'src/auth/auth.module';
       }),
     }),
   ],
-  providers: [ToolInstanceResolver],
+  providers: [ToolInstanceResolver, InvitesService],
 })
 export class AppGraphqlModule {}
