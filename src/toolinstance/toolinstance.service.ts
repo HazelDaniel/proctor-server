@@ -195,6 +195,7 @@ export class ToolInstanceService {
       docId: inst.docId,
       toolType: inst.toolType,
       ownerUserId: inst.ownerUserId,
+      archivedAt: inst.archivedAt ?? null,
     };
   }
 

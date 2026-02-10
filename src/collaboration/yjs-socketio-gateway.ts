@@ -109,6 +109,11 @@ export class YjsSocketIoGateway
       return;
     }
 
+    if (inst.archivedAt) {
+      client.disconnect(true);
+      return;
+    }
+
     const { docId, toolType } = inst;
 
     if (!this.tools.has(toolType)) {
