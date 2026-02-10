@@ -25,6 +25,75 @@ export class ToolInstanceService {
     return db.select().from(toolInstances);
   }
 
+  async listMembers(instanceId: string, requesterUserId: string) {
+    // gate: must have access
+    const ok = await this.canAccess(instanceId, requesterUserId);
+    if (!ok) throw new Error('Forbidden');
+
+    const instRows = await db
+      .select({ ownerUserId: toolInstances.ownerUserId })
+      .from(toolInstances)
+      .where(eq(toolInstances.id, instanceId))
+      .limit(1);
+
+    if (instRows.length === 0) throw new Error('Tool instance not found');
+    const ownerUserId = instRows[0].ownerUserId;
+
+    const memberRows = await db
+      .select({ userId: toolInstanceMembers.userId })
+      .from(toolInstanceMembers)
+      .where(eq(toolInstanceMembers.instanceId, instanceId));
+
+    // de-dupe + ensure owner included
+    const set = new Set<string>();
+    set.add(ownerUserId);
+    for (const m of memberRows) set.add(m.userId);
+
+    return Array.from(set).map((userId) => ({
+      userId,
+      role: userId === ownerUserId ? ('owner' as const) : ('member' as const),
+    }));
+  }
+
+  async leave(instanceId: string, userId: string): Promise<boolean> {
+    const inst = await this.getById(instanceId);
+    if (!inst) throw new Error('Tool instance not found');
+
+    if (inst.ownerUserId === userId) {
+      // Owner cannot 'leave'; must transfer ownership or delete/archive
+      throw new Error(
+        'Owner cannot leave instance. You can transfer ownership or delete/archive',
+      );
+    }
+
+    // Must be a member to leave
+    const isMember = await db
+      .select({ userId: toolInstanceMembers.userId })
+      .from(toolInstanceMembers)
+      .where(
+        and(
+          eq(toolInstanceMembers.instanceId, instanceId),
+          eq(toolInstanceMembers.userId, userId),
+        ),
+      )
+      .limit(1);
+
+    if (isMember.length === 0) {
+      throw new Error('Forbidden');
+    }
+
+    await db
+      .delete(toolInstanceMembers)
+      .where(
+        and(
+          eq(toolInstanceMembers.instanceId, instanceId),
+          eq(toolInstanceMembers.userId, userId),
+        ),
+      );
+
+    return true;
+  }
+
   async listForUser(
     userId: string,
     toolType?: string,

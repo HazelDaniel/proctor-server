@@ -8,6 +8,7 @@ import {
   CreateToolInstanceResult,
   ToolInstance,
   ToolInstanceInvite,
+  ToolInstanceMember,
   ValidationResult,
 } from '../types';
 import { CurrentUserId } from 'src/api/v1/graphql/utils/decorators/current-user-id';
@@ -234,5 +235,25 @@ export class ToolInstanceResolver {
     await Promise.resolve();
     if (!userId) throw new Error('Unauthorized');
     return this.toolInstanceService.delete(instanceId, userId);
+  }
+
+  @Query(() => [ToolInstanceMember])
+  async toolInstanceMembers(
+    @Args('instanceId') instanceId: string,
+    @CurrentUserId() userId: string | null,
+  ) {
+    await Promise.resolve();
+    if (!userId) throw new Error('Unauthorized');
+    return this.toolInstanceService.listMembers(instanceId, userId);
+  }
+
+  @Mutation(() => Boolean)
+  async leaveToolInstance(
+    @Args('instanceId') instanceId: string,
+    @CurrentUserId() userId: string | null,
+  ) {
+    await Promise.resolve();
+    if (!userId) throw new Error('Unauthorized');
+    return this.toolInstanceService.leave(instanceId, userId);
   }
 }

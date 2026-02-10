@@ -44,3 +44,9 @@ export class CreateInviteResult {
   @Field() invitedEmail!: string;
   @Field() expiresAt!: string;
 }
+
+@ObjectType()
+export class ToolInstanceMember {
+  @Field() userId!: string;
+  @Field() role!: 'owner' | 'member';
+}
