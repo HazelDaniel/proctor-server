@@ -24,7 +24,8 @@ import { UsersModule } from 'src/users/users.module';
       imports: [AuthModule],
       useFactory: (authService: AuthService) => ({
         autoSchemaFile: true,
-        playground: true,
+        // playground: false,
+        introspection: true,
 
         context: ({ req }: { req: Request }): GraphQLContext => {
           const authHeader = String(req.headers['authorization'] ?? '');
