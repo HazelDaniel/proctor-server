@@ -6,6 +6,7 @@ import type { Doc } from 'yjs' with { 'resolution-mode': 'import' };
 import {
   CreateInviteResult,
   CreateToolInstanceResult,
+  MyInvite,
   ToolInstance,
   ToolInstanceInvite,
   ToolInstanceMember,
@@ -255,5 +256,45 @@ export class ToolInstanceResolver {
     await Promise.resolve();
     if (!userId) throw new Error('Unauthorized');
     return this.toolInstanceService.leave(instanceId, userId);
+  }
+
+  @Query(() => [MyInvite])
+  async myPendingInvites(@CurrentUserId() userId: string | null) {
+    if (!userId) throw new Error('Unauthorized');
+
+    const email = await this.users.getEmailById(userId);
+    if (!email) throw new Error('User email not found');
+
+    const invites = await this.invites.myPendingInvites(email);
+
+    // Optionally enrich with toolType for UI without extra round trips
+    // (small N, acceptable)
+    const out: MyInvite[] = [];
+    for (const inv of invites) {
+      const inst = await this.toolInstanceService.getById(inv.instanceId);
+      out.push({
+        inviteId: inv.id,
+        instanceId: inv.instanceId,
+        invitedEmail: inv.invitedEmail,
+        status: inv.status,
+        createdAt: String(inv.createdAt),
+        expiresAt: String(inv.expiresAt),
+        toolType: inst?.toolType,
+      });
+    }
+    return out;
+  }
+
+  @Mutation(() => Boolean)
+  async declineInvite(
+    @Args('inviteId') inviteId: string,
+    @CurrentUserId() userId: string | null,
+  ) {
+    if (!userId) throw new Error('Unauthorized');
+
+    const email = await this.users.getEmailById(userId);
+    if (!email) throw new Error('User email not found');
+
+    return this.invites.declineInvite(inviteId, email);
   }
 }

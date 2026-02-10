@@ -50,3 +50,16 @@ export class ToolInstanceMember {
   @Field() userId!: string;
   @Field() role!: 'owner' | 'member';
 }
+
+@ObjectType()
+export class MyInvite {
+  @Field(() => ID) inviteId!: string;
+  @Field(() => ID) instanceId!: string;
+  @Field() invitedEmail!: string;
+  @Field() status!: string;
+  @Field() expiresAt!: string;
+  @Field() createdAt!: string;
+
+  // Useful for UI
+  @Field({ nullable: true }) toolType?: string;
+}

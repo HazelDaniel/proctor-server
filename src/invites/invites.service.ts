@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { randomBytes, createHash } from 'crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from 'src/db/db.provider';
 import {
   toolInstanceInvites,
@@ -104,6 +104,39 @@ export class InvitesService {
     return true;
   }
 
+  async myPendingInvites(userEmail: string) {
+    const email = normalizeEmail(userEmail);
+
+    // Optional: auto-expire any that are past expiresAt
+    // Keep it simple for now: filter by expiresAt in code after fetch or with SQL if you prefer.
+
+    const rows = await db
+      .select()
+      .from(toolInstanceInvites)
+      .where(
+        and(
+          eq(toolInstanceInvites.invitedEmail, email),
+          eq(toolInstanceInvites.status, 'pending'),
+        ),
+      );
+
+    // Mark expired ones and exclude them
+    const now = Date.now();
+    const pending: typeof rows = [];
+    for (const inv of rows) {
+      if (inv.expiresAt.getTime() < now) {
+        await db
+          .update(toolInstanceInvites)
+          .set({ status: 'expired' })
+          .where(eq(toolInstanceInvites.id, inv.id));
+      } else {
+        pending.push(inv);
+      }
+    }
+
+    return pending;
+  }
+
   async acceptInvite(
     token: string,
     currentUserId: string,
@@ -150,6 +183,30 @@ export class InvitesService {
       })
       .where(eq(toolInstanceInvites.id, invite.id));
 
+    return true;
+  }
+
+  async declineInvite(inviteId: string, userEmail: string) {
+    const email = normalizeEmail(userEmail);
+
+    const rows = await db
+      .select()
+      .from(toolInstanceInvites)
+      .where(eq(toolInstanceInvites.id, inviteId))
+      .limit(1);
+
+    if (rows.length === 0) throw new Error('Invite not found');
+
+    const inv = rows[0];
+
+    if (inv.invitedEmail !== email) throw new Error('Forbidden');
+    if (inv.status !== 'pending') return true;
+
+    // decline means: stop showing in pending list
+    await db
+      .update(toolInstanceInvites)
+      .set({ status: 'declined' })
+      .where(eq(toolInstanceInvites.id, inviteId));
     return true;
   }
 }
