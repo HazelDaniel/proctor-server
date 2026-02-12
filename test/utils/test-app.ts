@@ -9,6 +9,7 @@ import { AuthService } from '../../src/auth/auth.service';
 import { JwtModule } from '@nestjs/jwt';
 import { ToolInstanceResolver } from '../../src/api/contracts/graphql/resolvers/tool-instance.resolver';
 import { SchemaDesignTool } from '../../src/tools/implementations/schema-design/tool';
+import { AuthResolver } from '../../src/api/contracts/graphql/resolvers/auth.resolver';
 
 // If your services require Drizzle db via module/provider, import the module that provides it instead.
 // Here we assume your db client is a singleton import and services just use it internally.
@@ -31,6 +32,7 @@ export async function createTestingModule() {
       AuthService,
       ToolInstanceResolver,
       SchemaDesignTool,
+      AuthResolver,
     ],
   }).compile();
 

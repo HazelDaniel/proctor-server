@@ -2,7 +2,9 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as schema from './drivers/drizzle/schema';
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+export function createDb(connectionString: string) {
+  const pool = new Pool({ connectionString });
+  return drizzle(pool, { schema, casing: 'snake_case' });
+}
 
-export const db = drizzle(pool, { schema, casing: 'snake_case' });
-export type DB = typeof db;
+export type DB = ReturnType<typeof createDb>;

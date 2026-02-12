@@ -63,3 +63,15 @@ export class MyInvite {
   // Useful for UI
   @Field({ nullable: true }) toolType?: string;
 }
+
+@ObjectType()
+export class User {
+  @Field(() => ID) id!: string;
+  @Field() email!: string;
+}
+
+@ObjectType()
+export class AuthResult {
+  @Field() token!: string;
+  @Field(() => User) user!: User;
+}

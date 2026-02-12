@@ -1,9 +1,8 @@
 // Collaboration Layer: Persistence service (fixed and() usage + dynamic yjs import)
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { and, lt } from 'drizzle-orm';
 import { lte } from 'drizzle-orm';
 import { eq, gt, desc } from 'drizzle-orm';
-import { db } from 'src/db/db.provider';
 import {
   documentSnapshots,
   documentUpdates,
@@ -11,13 +10,17 @@ import {
 } from 'src/db/drivers/drizzle/schema';
 import { loadYjsProtocols } from 'src/import-resolution/yjs';
 import type { Doc } from 'yjs' with { 'resolution-mode': 'import' };
+import { DB_PROVIDER } from 'src/db/db.module';
+import type { DB } from 'src/db/db.provider';
 
 @Injectable()
 export class ToolPersistenceService {
   private readonly SNAPSHOT_COMPACTION_THRESHOLD: number = 5;
 
+  constructor(@Inject(DB_PROVIDER) private readonly db: DB) {}
+
   async loadDocument(docId: string): Promise<{ doc: Doc; seq: number } | null> {
-    const snapshot = await db
+    const snapshot = await this.db
       .select()
       .from(documentSnapshots)
       .where(eq(documentSnapshots.docId, docId))
@@ -34,10 +37,10 @@ export class ToolPersistenceService {
     const doc: Doc = new Doc();
     applyUpdate(doc, binary);
 
-    const updates = await db
+    const updates = await this.db
       .select()
       .from(documentUpdates)
-      .where(gt(documentUpdates.seq, seq) && eq(documentUpdates.docId, docId))
+      .where(and(gt(documentUpdates.seq, seq), eq(documentUpdates.docId, docId)))
       .orderBy(documentUpdates.seq);
 
     for (const row of updates) {
@@ -51,7 +54,7 @@ export class ToolPersistenceService {
     const { encodeStateAsUpdate } = (await loadYjsProtocols()).YJS;
     const snapshot = encodeStateAsUpdate(doc);
 
-    await db.transaction(async (tx) => {
+    await this.db.transaction(async (tx) => {
       await tx.insert(documents).values({
         id: docId,
         toolType,
@@ -66,7 +69,7 @@ export class ToolPersistenceService {
   }
 
   async appendUpdate(docId: string, seq: number, update: Uint8Array) {
-    await db.insert(documentUpdates).values({
+    await this.db.insert(documentUpdates).values({
       docId,
       seq,
       update: Buffer.from(update),
@@ -77,7 +80,7 @@ export class ToolPersistenceService {
     const { encodeStateAsUpdate } = (await loadYjsProtocols()).YJS;
     const snapshot = encodeStateAsUpdate(doc);
 
-    await db.insert(documentSnapshots).values({
+    await this.db.insert(documentSnapshots).values({
       docId,
       seq,
       snapshot: Buffer.from(snapshot),
@@ -100,7 +103,7 @@ export class ToolPersistenceService {
     snapshotSeq: number,
     keepSnapshots = 5,
   ) {
-    await db.transaction(async (tx) => {
+    await this.db.transaction(async (tx) => {
       await tx
         .delete(documentUpdates)
         .where(

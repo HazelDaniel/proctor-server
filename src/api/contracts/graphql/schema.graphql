@@ -19,6 +19,16 @@ type CreateToolInstanceResult {
   instance: ToolInstance!
 }
 
+type User {
+  id: ID!
+  email: String!
+}
+
+type AuthResult {
+  token: String!
+  user: User!
+}
+
 type Query {
   toolInstances(toolType: String): [ToolInstance!]!
 }
@@ -27,6 +37,8 @@ type Mutation {
   createToolInstance(toolType: String!): CreateToolInstanceResult!
   validateToolInstance(instanceId: ID!): ValidationResult!
   compileToolInstance(instanceId: ID!): String
+  requestLogin(email: String!): Boolean!
+  verifyLogin(email: String!, token: String!): AuthResult!
 }
 
 extend type Mutation {

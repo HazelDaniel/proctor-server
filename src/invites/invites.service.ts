@@ -1,7 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { randomBytes, createHash } from 'crypto';
+import { Injectable, Inject } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
-import { db } from 'src/db/db.provider';
 import {
   toolInstanceInvites,
   toolInstanceMembers,
@@ -13,25 +11,22 @@ import {
   PermissionDeniedError,
   ValidationError,
 } from '../common/errors/domain-errors';
-
-function sha256Hex(input: string) {
-  return createHash('sha256').update(input).digest('hex');
-}
-
-function newToken() {
-  return randomBytes(32).toString('base64url');
-}
+import { sha256Hex, newToken } from '../common/crypto';
+import { DB_PROVIDER } from '../db/db.module';
+import type { DB } from '../db/db.provider';
 
 @Injectable()
 export class InvitesService {
   private readonly INVITE_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+
+  constructor(@Inject(DB_PROVIDER) private readonly db: DB) {}
 
   async createInvite(
     instanceId: string,
     ownerUserId: string,
     invitedEmail: string,
   ) {
-    const inst = await db
+    const inst = await this.db
       .select()
       .from(toolInstances)
       .where(eq(toolInstances.id, instanceId))
@@ -48,7 +43,7 @@ export class InvitesService {
 
     // Optional: prevent multiple pending invites for same email+instance
     // (simple approach: just insert; you can also check existing pending and re-use)
-    await db.insert(toolInstanceInvites).values({
+    await this.db.insert(toolInstanceInvites).values({
       id: crypto.randomUUID(),
       instanceId,
       invitedEmail: email,
@@ -65,7 +60,7 @@ export class InvitesService {
   }
 
   async listInvites(instanceId: string, ownerUserId: string) {
-    const inst = await db
+    const inst = await this.db
       .select()
       .from(toolInstances)
       .where(eq(toolInstances.id, instanceId))
@@ -73,21 +68,21 @@ export class InvitesService {
     if (!inst[0]) throw new NotFoundError('Tool instance');
     if (inst[0].ownerUserId !== ownerUserId) throw new PermissionDeniedError('Forbidden');
 
-    return db
+    return this.db
       .select()
       .from(toolInstanceInvites)
       .where(eq(toolInstanceInvites.instanceId, instanceId));
   }
 
   async revokeInvite(inviteId: string, ownerUserId: string) {
-    const inv = await db
+    const inv = await this.db
       .select()
       .from(toolInstanceInvites)
       .where(eq(toolInstanceInvites.id, inviteId))
       .limit(1);
     if (!inv[0]) throw new NotFoundError('Invite');
 
-    const inst = await db
+    const inst = await this.db
       .select()
       .from(toolInstances)
       .where(eq(toolInstances.id, inv[0].instanceId))
@@ -97,7 +92,7 @@ export class InvitesService {
 
     if (inv[0].status !== 'pending') return true;
 
-    await db
+    await this.db
       .update(toolInstanceInvites)
       .set({
         status: 'revoked',
@@ -115,7 +110,7 @@ export class InvitesService {
     // Optional: auto-expire any that are past expiresAt
     // Keep it simple for now: filter by expiresAt in code after fetch or with SQL if you prefer.
 
-    const rows = await db
+    const rows = await this.db
       .select()
       .from(toolInstanceInvites)
       .where(
@@ -130,7 +125,7 @@ export class InvitesService {
     const pending: typeof rows = [];
     for (const inv of rows) {
       if (inv.expiresAt.getTime() < now) {
-        await db
+        await this.db
           .update(toolInstanceInvites)
           .set({ status: 'expired' })
           .where(eq(toolInstanceInvites.id, inv.id));
@@ -148,7 +143,7 @@ export class InvitesService {
     currentUserEmail: string,
   ) {
     const tokenHash = sha256Hex(token);
-    const rows = await db
+    const rows = await this.db
       .select()
       .from(toolInstanceInvites)
       .where(eq(toolInstanceInvites.tokenHash, tokenHash))
@@ -159,7 +154,7 @@ export class InvitesService {
 
     if (invite.status !== 'pending') throw new ValidationError('Invite is not pending');
     if (invite.expiresAt.getTime() < Date.now()) {
-      await db
+      await this.db
         .update(toolInstanceInvites)
         .set({ status: 'expired' })
         .where(eq(toolInstanceInvites.id, invite.id));
@@ -171,7 +166,7 @@ export class InvitesService {
     if (email !== invite.invitedEmail) throw new ValidationError('Invite email mismatch');
 
     try {
-      await db.insert(toolInstanceMembers).values({
+      await this.db.insert(toolInstanceMembers).values({
         instanceId: invite.instanceId,
         userId: currentUserId,
       });
@@ -179,7 +174,7 @@ export class InvitesService {
       // already member, ignore
     }
 
-    await db
+    await this.db
       .update(toolInstanceInvites)
       .set({
         status: 'accepted',
@@ -194,7 +189,7 @@ export class InvitesService {
   async declineInvite(inviteId: string, userEmail: string) {
     const email = normalizeEmail(userEmail);
 
-    const rows = await db
+    const rows = await this.db
       .select()
       .from(toolInstanceInvites)
       .where(eq(toolInstanceInvites.id, inviteId))
@@ -208,7 +203,7 @@ export class InvitesService {
     if (inv.status !== 'pending') return true;
 
     // decline means: stop showing in pending list
-    await db
+    await this.db
       .update(toolInstanceInvites)
       .set({ status: 'declined' })
       .where(eq(toolInstanceInvites.id, inviteId));

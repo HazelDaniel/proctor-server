@@ -1,8 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { and, inArray, isNull } from 'drizzle-orm';
 import { eq } from 'drizzle-orm';
-import { db } from 'src/db/db.provider';
 import {
   documents,
   toolInstanceMembers,
@@ -10,20 +9,25 @@ import {
 } from 'src/db/drivers/drizzle/schema';
 import { ToolRegistry } from 'src/tools/registry';
 import { NotFoundError, PermissionDeniedError } from '../common/errors/domain-errors';
+import { DB_PROVIDER } from 'src/db/db.module';
+import type { DB } from 'src/db/db.provider';
 
 @Injectable()
 export class ToolInstanceService {
-  constructor(private readonly toolRegistry: ToolRegistry) {}
+  constructor(
+    private readonly toolRegistry: ToolRegistry,
+    @Inject(DB_PROVIDER) private readonly db: DB,
+  ) {}
 
   async list(toolType?: string) {
     if (toolType) {
-      return db
+      return this.db
         .select()
         .from(toolInstances)
         .where(eq(toolInstances.toolType, toolType));
     }
 
-    return db.select().from(toolInstances);
+    return this.db.select().from(toolInstances);
   }
 
   async listMembers(instanceId: string, requesterUserId: string) {
@@ -31,7 +35,7 @@ export class ToolInstanceService {
     const ok = await this.canAccess(instanceId, requesterUserId);
     if (!ok) throw new PermissionDeniedError('Forbidden');
 
-    const instRows = await db
+    const instRows = await this.db
       .select({ ownerUserId: toolInstances.ownerUserId })
       .from(toolInstances)
       .where(eq(toolInstances.id, instanceId))
@@ -40,7 +44,7 @@ export class ToolInstanceService {
     if (instRows.length === 0) throw new NotFoundError('Tool instance');
     const ownerUserId = instRows[0].ownerUserId;
 
-    const memberRows = await db
+    const memberRows = await this.db
       .select({ userId: toolInstanceMembers.userId })
       .from(toolInstanceMembers)
       .where(eq(toolInstanceMembers.instanceId, instanceId));
@@ -68,7 +72,7 @@ export class ToolInstanceService {
     }
 
     // Must be a member to leave
-    const isMember = await db
+    const isMember = await this.db
       .select({ userId: toolInstanceMembers.userId })
       .from(toolInstanceMembers)
       .where(
@@ -83,7 +87,7 @@ export class ToolInstanceService {
       throw new PermissionDeniedError('Forbidden');
     }
 
-    await db
+    await this.db
       .delete(toolInstanceMembers)
       .where(
         and(
@@ -107,7 +111,7 @@ export class ToolInstanceService {
         )
       : eq(toolInstances.ownerUserId, userId);
 
-    const owned = await db
+    const owned = await this.db
       .select()
       .from(toolInstances)
       .where(
@@ -117,7 +121,7 @@ export class ToolInstanceService {
       );
 
     // member
-    const memberRows = await db
+    const memberRows = await this.db
       .select({ instanceId: toolInstanceMembers.instanceId })
       .from(toolInstanceMembers)
       .where(eq(toolInstanceMembers.userId, userId));
@@ -125,7 +129,7 @@ export class ToolInstanceService {
     const memberIds = memberRows.map((r) => r.instanceId);
     if (memberIds.length === 0) return owned;
 
-    const memberInstances = await db
+    const memberInstances = await this.db
       .select()
       .from(toolInstances)
       .where(
@@ -150,12 +154,12 @@ export class ToolInstanceService {
     const id = randomUUID();
     const docId = randomUUID();
 
-    await db.insert(toolInstances).values({ id, toolType, docId, ownerUserId });
+    await this.db.insert(toolInstances).values({ id, toolType, docId, ownerUserId });
     return { id, toolType, docId, ownerUserId };
   }
 
   async canAccess(instanceId: string, userId: string): Promise<boolean> {
-    const rows = await db
+    const rows = await this.db
       .select({ id: toolInstances.id })
       .from(toolInstances)
       .leftJoin(
@@ -175,7 +179,7 @@ export class ToolInstanceService {
 
     if (inst.ownerUserId === userId) return true;
 
-    const mem = await db
+    const mem = await this.db
       .select()
       .from(toolInstanceMembers)
       .where(
@@ -201,7 +205,7 @@ export class ToolInstanceService {
   }
 
   async isOwner(instanceId: string, userId: string): Promise<boolean> {
-    const rows = await db
+    const rows = await this.db
       .select({ ownerUserId: toolInstances.ownerUserId })
       .from(toolInstances)
       .where(eq(toolInstances.id, instanceId))
@@ -227,7 +231,7 @@ export class ToolInstanceService {
       }
     }
 
-    await db
+    await this.db
       .update(toolInstances)
       .set({ ownerUserId: newOwnerUserId })
       .where(eq(toolInstances.id, instanceId));
@@ -238,7 +242,7 @@ export class ToolInstanceService {
   async addMember(instanceId: string, userId: string): Promise<boolean> {
     // idempotent insert: try/catch on unique constraint
     try {
-      await db.insert(toolInstanceMembers).values({ instanceId, userId });
+      await this.db.insert(toolInstanceMembers).values({ instanceId, userId });
       return true;
     } catch {
       return false;
@@ -250,7 +254,7 @@ export class ToolInstanceService {
     if (!inst) return false;
     if (inst.ownerUserId === userId) return false;
 
-    await db
+    await this.db
       .delete(toolInstanceMembers)
       .where(
         and(
@@ -262,7 +266,7 @@ export class ToolInstanceService {
   }
 
   async getById(instanceId: string) {
-    const [instance] = await db
+    const [instance] = await this.db
       .select()
       .from(toolInstances)
       .where(eq(toolInstances.id, instanceId))
@@ -276,7 +280,7 @@ export class ToolInstanceService {
     if (!inst) throw new NotFoundError('Tool instance');
     if (inst.ownerUserId !== ownerUserId) throw new PermissionDeniedError('Forbidden');
 
-    await db
+    await this.db
       .update(toolInstances)
       .set({ archivedAt: new Date() })
       .where(eq(toolInstances.id, instanceId));
@@ -289,7 +293,7 @@ export class ToolInstanceService {
     if (!inst) throw new NotFoundError('Tool instance');
     if (inst.ownerUserId !== ownerUserId) throw new PermissionDeniedError('Forbidden');
 
-    await db
+    await this.db
       .update(toolInstances)
       .set({ archivedAt: null })
       .where(eq(toolInstances.id, instanceId));
@@ -303,11 +307,11 @@ export class ToolInstanceService {
     if (inst.ownerUserId !== ownerUserId) throw new PermissionDeniedError('Forbidden');
 
     // Hard delete tool instance (invites/members cascade via FK)
-    await db.delete(toolInstances).where(eq(toolInstances.id, instanceId));
+    await this.db.delete(toolInstances).where(eq(toolInstances.id, instanceId));
 
     // Also delete the document row so snapshots/updates cascade
     // (Assumes documentSnapshots/documentUpdates reference documents with ON DELETE CASCADE)
-    await db.delete(documents).where(eq(documents.id, inst.docId));
+    await this.db.delete(documents).where(eq(documents.id, inst.docId));
 
     return true;
   }

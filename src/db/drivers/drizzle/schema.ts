@@ -140,3 +140,21 @@ export const toolInstanceMembers = pgTable(
     userIdx: index('tool_instance_members_user_idx').on(t.userId),
   }),
 );
+
+export const authTokens = pgTable(
+  'auth_tokens',
+  {
+    id: uuid('id').primaryKey(),
+    email: text('email').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    status: text('status').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => ({
+    tokenHashUq: uniqueIndex('auth_tokens_token_hash_uq').on(t.tokenHash),
+    emailIdx: index('auth_tokens_email_idx').on(t.email),
+  }),
+);
