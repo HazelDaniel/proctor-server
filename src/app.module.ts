@@ -14,6 +14,7 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
 const envSchema = z.object({
   DATABASE_URL: z.url(),
   PORT: z.string().optional(),
+  JWT_SECRET: z.string(),
 });
 
 @Module({
