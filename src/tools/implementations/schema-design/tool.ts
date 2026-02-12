@@ -1,3 +1,4 @@
+import { loadYjsProtocols } from 'src/import-resolution/yjs';
 import type {
   ToolDefinition,
   ValidationResult,
@@ -40,7 +41,7 @@ export class SchemaDesignTool {
     type: 'schema-design',
 
     async initDocument() {
-      const doc: Doc = new (await import('yjs')).Doc();
+      const doc: Doc = new (await loadYjsProtocols()).YJS.Doc();
 
       doc.getMap('tables');
       doc.getMap('keys');

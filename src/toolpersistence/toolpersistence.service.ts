@@ -9,6 +9,7 @@ import {
   documentUpdates,
   documents,
 } from 'src/db/drivers/drizzle/schema';
+import { loadYjsProtocols } from 'src/import-resolution/yjs';
 import type { Doc } from 'yjs' with { 'resolution-mode': 'import' };
 
 @Injectable()
@@ -29,7 +30,7 @@ export class ToolPersistenceService {
 
     const [{ snapshot: binary, seq }] = snapshot;
 
-    const { Doc, applyUpdate } = await import('yjs');
+    const { Doc, applyUpdate } = (await loadYjsProtocols()).YJS;
     const doc: Doc = new Doc();
     applyUpdate(doc, binary);
 
@@ -47,7 +48,7 @@ export class ToolPersistenceService {
   }
 
   async persistInitialSnapshot(docId: string, toolType: string, doc: Doc) {
-    const { encodeStateAsUpdate } = await import('yjs');
+    const { encodeStateAsUpdate } = (await loadYjsProtocols()).YJS;
     const snapshot = encodeStateAsUpdate(doc);
 
     await db.transaction(async (tx) => {
@@ -73,7 +74,7 @@ export class ToolPersistenceService {
   }
 
   async createSnapshot(docId: string, seq: number, doc: Doc) {
-    const { encodeStateAsUpdate } = await import('yjs');
+    const { encodeStateAsUpdate } = (await loadYjsProtocols()).YJS;
     const snapshot = encodeStateAsUpdate(doc);
 
     await db.insert(documentSnapshots).values({
