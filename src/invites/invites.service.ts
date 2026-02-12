@@ -8,6 +8,11 @@ import {
   toolInstances,
 } from 'src/db/drivers/drizzle/schema';
 import { normalizeEmail } from '../users/users.service';
+import {
+  NotFoundError,
+  PermissionDeniedError,
+  ValidationError,
+} from '../common/errors/domain-errors';
 
 function sha256Hex(input: string) {
   return createHash('sha256').update(input).digest('hex');
@@ -31,8 +36,8 @@ export class InvitesService {
       .from(toolInstances)
       .where(eq(toolInstances.id, instanceId))
       .limit(1);
-    if (!inst[0]) throw new Error('Tool instance not found');
-    if (inst[0].ownerUserId !== ownerUserId) throw new Error('Forbidden');
+    if (!inst[0]) throw new NotFoundError('Tool instance');
+    if (inst[0].ownerUserId !== ownerUserId) throw new PermissionDeniedError('Forbidden');
 
     const email = normalizeEmail(invitedEmail);
     const token = newToken();
@@ -65,8 +70,8 @@ export class InvitesService {
       .from(toolInstances)
       .where(eq(toolInstances.id, instanceId))
       .limit(1);
-    if (!inst[0]) throw new Error('Tool instance not found');
-    if (inst[0].ownerUserId !== ownerUserId) throw new Error('Forbidden');
+    if (!inst[0]) throw new NotFoundError('Tool instance');
+    if (inst[0].ownerUserId !== ownerUserId) throw new PermissionDeniedError('Forbidden');
 
     return db
       .select()
@@ -80,15 +85,15 @@ export class InvitesService {
       .from(toolInstanceInvites)
       .where(eq(toolInstanceInvites.id, inviteId))
       .limit(1);
-    if (!inv[0]) throw new Error('Invite not found');
+    if (!inv[0]) throw new NotFoundError('Invite');
 
     const inst = await db
       .select()
       .from(toolInstances)
       .where(eq(toolInstances.id, inv[0].instanceId))
       .limit(1);
-    if (!inst[0]) throw new Error('Tool instance not found');
-    if (inst[0].ownerUserId !== ownerUserId) throw new Error('Forbidden');
+    if (!inst[0]) throw new NotFoundError('Tool instance');
+    if (inst[0].ownerUserId !== ownerUserId) throw new PermissionDeniedError('Forbidden');
 
     if (inv[0].status !== 'pending') return true;
 
@@ -148,22 +153,22 @@ export class InvitesService {
       .from(toolInstanceInvites)
       .where(eq(toolInstanceInvites.tokenHash, tokenHash))
       .limit(1);
-    if (!rows[0]) throw new Error('Invalid invite token');
+    if (!rows[0]) throw new ValidationError('Invalid invite token');
 
     const invite = rows[0];
 
-    if (invite.status !== 'pending') throw new Error('Invite is not pending');
+    if (invite.status !== 'pending') throw new ValidationError('Invite is not pending');
     if (invite.expiresAt.getTime() < Date.now()) {
       await db
         .update(toolInstanceInvites)
         .set({ status: 'expired' })
         .where(eq(toolInstanceInvites.id, invite.id));
-      throw new Error('Invite expired');
+      throw new ValidationError('Invite expired');
     }
 
     // Prevent token forwarding: only the invited email can accept
     const email = normalizeEmail(currentUserEmail);
-    if (email !== invite.invitedEmail) throw new Error('Invite email mismatch');
+    if (email !== invite.invitedEmail) throw new ValidationError('Invite email mismatch');
 
     try {
       await db.insert(toolInstanceMembers).values({
@@ -195,11 +200,11 @@ export class InvitesService {
       .where(eq(toolInstanceInvites.id, inviteId))
       .limit(1);
 
-    if (rows.length === 0) throw new Error('Invite not found');
+    if (rows.length === 0) throw new NotFoundError('Invite');
 
     const inv = rows[0];
 
-    if (inv.invitedEmail !== email) throw new Error('Forbidden');
+    if (inv.invitedEmail !== email) throw new PermissionDeniedError('Forbidden');
     if (inv.status !== 'pending') return true;
 
     // decline means: stop showing in pending list

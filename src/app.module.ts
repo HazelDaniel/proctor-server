@@ -8,6 +8,8 @@ import { ToolPersistenceService } from './toolpersistence/toolpersistence.servic
 import { CollaborationModule } from './collaboration/collaboration.module';
 import { AuthModule } from './auth/auth.module';
 import { AppGraphqlModule } from './api/v1/graphql/graphql.module';
+import { APP_FILTER } from '@nestjs/core';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
 const envSchema = z.object({
   DATABASE_URL: z.url(),
@@ -31,6 +33,13 @@ const envSchema = z.object({
     AuthModule,
   ],
   controllers: [AppController],
-  providers: [AppService, ToolPersistenceService],
+  providers: [
+    AppService, 
+    ToolPersistenceService,
+    {
+      provide: APP_FILTER,
+      useClass: GlobalExceptionFilter,
+    },
+  ],
 })
 export class AppModule {}

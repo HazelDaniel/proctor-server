@@ -9,6 +9,7 @@ import {
   toolInstances,
 } from 'src/db/drivers/drizzle/schema';
 import { ToolRegistry } from 'src/tools/registry';
+import { NotFoundError, PermissionDeniedError } from '../common/errors/domain-errors';
 
 @Injectable()
 export class ToolInstanceService {
@@ -28,7 +29,7 @@ export class ToolInstanceService {
   async listMembers(instanceId: string, requesterUserId: string) {
     // gate: must have access
     const ok = await this.canAccess(instanceId, requesterUserId);
-    if (!ok) throw new Error('Forbidden');
+    if (!ok) throw new PermissionDeniedError('Forbidden');
 
     const instRows = await db
       .select({ ownerUserId: toolInstances.ownerUserId })
@@ -36,7 +37,7 @@ export class ToolInstanceService {
       .where(eq(toolInstances.id, instanceId))
       .limit(1);
 
-    if (instRows.length === 0) throw new Error('Tool instance not found');
+    if (instRows.length === 0) throw new NotFoundError('Tool instance');
     const ownerUserId = instRows[0].ownerUserId;
 
     const memberRows = await db
@@ -57,11 +58,11 @@ export class ToolInstanceService {
 
   async leave(instanceId: string, userId: string): Promise<boolean> {
     const inst = await this.getById(instanceId);
-    if (!inst) throw new Error('Tool instance not found');
+    if (!inst) throw new NotFoundError('Tool instance');
 
     if (inst.ownerUserId === userId) {
       // Owner cannot 'leave'; must transfer ownership or delete/archive
-      throw new Error(
+      throw new PermissionDeniedError(
         'Owner cannot leave instance. You can transfer ownership or delete/archive',
       );
     }
@@ -79,7 +80,7 @@ export class ToolInstanceService {
       .limit(1);
 
     if (isMember.length === 0) {
-      throw new Error('Forbidden');
+      throw new PermissionDeniedError('Forbidden');
     }
 
     await db
@@ -215,8 +216,8 @@ export class ToolInstanceService {
     newOwnerUserId: string,
   ) {
     const inst = await this.getById(instanceId);
-    if (!inst) throw new Error('Tool instance not found');
-    if (inst.ownerUserId !== currentOwnerId) throw new Error('Forbidden');
+    if (!inst) throw new NotFoundError('Tool instance');
+    if (inst.ownerUserId !== currentOwnerId) throw new PermissionDeniedError('Forbidden');
 
     // ensure new owner can access after transfer (make them a member if needed)
     if (newOwnerUserId !== currentOwnerId) {
@@ -272,8 +273,8 @@ export class ToolInstanceService {
 
   async archive(instanceId: string, ownerUserId: string) {
     const inst = await this.getById(instanceId);
-    if (!inst) throw new Error('Tool instance not found');
-    if (inst.ownerUserId !== ownerUserId) throw new Error('Forbidden');
+    if (!inst) throw new NotFoundError('Tool instance');
+    if (inst.ownerUserId !== ownerUserId) throw new PermissionDeniedError('Forbidden');
 
     await db
       .update(toolInstances)
@@ -285,8 +286,8 @@ export class ToolInstanceService {
 
   async unarchive(instanceId: string, ownerUserId: string) {
     const inst = await this.getById(instanceId);
-    if (!inst) throw new Error('Tool instance not found');
-    if (inst.ownerUserId !== ownerUserId) throw new Error('Forbidden');
+    if (!inst) throw new NotFoundError('Tool instance');
+    if (inst.ownerUserId !== ownerUserId) throw new PermissionDeniedError('Forbidden');
 
     await db
       .update(toolInstances)
@@ -298,8 +299,8 @@ export class ToolInstanceService {
 
   async delete(instanceId: string, ownerUserId: string) {
     const inst = await this.getById(instanceId);
-    if (!inst) throw new Error('Tool instance not found');
-    if (inst.ownerUserId !== ownerUserId) throw new Error('Forbidden');
+    if (!inst) throw new NotFoundError('Tool instance');
+    if (inst.ownerUserId !== ownerUserId) throw new PermissionDeniedError('Forbidden');
 
     // Hard delete tool instance (invites/members cascade via FK)
     await db.delete(toolInstances).where(eq(toolInstances.id, instanceId));

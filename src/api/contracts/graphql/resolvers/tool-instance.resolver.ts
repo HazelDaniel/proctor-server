@@ -15,6 +15,11 @@ import {
 import { CurrentUserId } from 'src/api/v1/graphql/utils/decorators/current-user-id';
 import { InvitesService } from 'src/invites/invites.service';
 import { UsersService } from 'src/users/users.service';
+import {
+  NotFoundError,
+  PermissionDeniedError,
+  UnauthenticatedError,
+} from 'src/common/errors/domain-errors';
 
 @Resolver()
 export class ToolInstanceResolver {
@@ -31,7 +36,7 @@ export class ToolInstanceResolver {
     @Args('toolType', { nullable: true }) toolType: string,
     @CurrentUserId() userId: string | null,
   ) {
-    if (!userId) throw new Error('Unauthorized');
+    if (!userId) throw new UnauthenticatedError('Unauthorized');
     await Promise.resolve();
 
     // minimal approach: we list only owned instances for now
@@ -45,7 +50,7 @@ export class ToolInstanceResolver {
     @Args('email') email: string,
     @CurrentUserId() userId: string | null,
   ) {
-    if (!userId) throw new Error('Unauthorized');
+    if (!userId) throw new UnauthenticatedError('Unauthorized');
     return this.invites.createInvite(instanceId, userId, email);
   }
 
@@ -54,7 +59,7 @@ export class ToolInstanceResolver {
     @Args('instanceId') instanceId: string,
     @CurrentUserId() userId: string | null,
   ) {
-    if (!userId) throw new Error('Unauthorized');
+    if (!userId) throw new UnauthenticatedError('Unauthorized');
     const rows = await this.invites.listInvites(instanceId, userId);
     return rows.map((r) => ({
       id: r.id,
@@ -73,7 +78,7 @@ export class ToolInstanceResolver {
     @Args('inviteId') inviteId: string,
     @CurrentUserId() userId: string | null,
   ) {
-    if (!userId) throw new Error('Unauthorized');
+    if (!userId) throw new UnauthenticatedError('Unauthorized');
     return this.invites.revokeInvite(inviteId, userId);
   }
 
@@ -82,10 +87,10 @@ export class ToolInstanceResolver {
     @Args('token') token: string,
     @CurrentUserId() userId: string | null,
   ) {
-    if (!userId) throw new Error('Unauthorized');
+    if (!userId) throw new UnauthenticatedError('Unauthorized');
 
     const email = await this.users.getEmailById(userId);
-    if (!email) throw new Error('User email not found');
+    if (!email) throw new NotFoundError('User email');
 
     return this.invites.acceptInvite(token, userId, email);
   }
@@ -95,7 +100,7 @@ export class ToolInstanceResolver {
     @Args('toolType') toolType: string,
     @CurrentUserId() ownerUserId: string,
   ) {
-    if (!ownerUserId) throw new Error('Unauthorized!');
+    if (!ownerUserId) throw new UnauthenticatedError('Unauthorized!');
     const instance = await this.toolInstanceService.create(
       toolType,
       ownerUserId,
@@ -108,13 +113,13 @@ export class ToolInstanceResolver {
     @Args('instanceId') instanceId: string,
     @CurrentUserId() userId: string | null,
   ) {
-    if (!userId) throw new Error('Unauthorized');
+    if (!userId) throw new UnauthenticatedError('Unauthorized');
     const instance = await this.toolInstanceService.getById(instanceId);
     if (!instance) {
-      throw new Error('Tool instance not found');
+      throw new NotFoundError('Tool instance');
     }
     if (!(await this.toolInstanceService.canAccess(instanceId, userId)))
-      throw new Error('Forbidden');
+      throw new PermissionDeniedError('Forbidden');
 
     const tool = this.toolRegistry.get(instance.toolType);
     if (!tool.validate) {
@@ -139,10 +144,10 @@ export class ToolInstanceResolver {
     @Args('userId') invitedUserId: string,
     @CurrentUserId() userId: string | null,
   ) {
-    if (!userId) throw new Error('Unauthorized');
+    if (!userId) throw new UnauthenticatedError('Unauthorized');
 
     const isOwner = await this.toolInstanceService.isOwner(instanceId, userId);
-    if (!isOwner) throw new Error('Forbidden');
+    if (!isOwner) throw new PermissionDeniedError('Forbidden');
 
     if (invitedUserId === userId) return true;
 
@@ -155,9 +160,9 @@ export class ToolInstanceResolver {
     @Args('userId') memberUserId: string,
     @CurrentUserId() userId: string | null,
   ) {
-    if (!userId) throw new Error('Unauthorized');
+    if (!userId) throw new UnauthenticatedError('Unauthorized');
     if (!(await this.toolInstanceService.isOwner(instanceId, userId)))
-      throw new Error('Forbidden');
+      throw new PermissionDeniedError('Forbidden');
     return this.toolInstanceService.removeMember(instanceId, memberUserId);
   }
 
@@ -167,7 +172,7 @@ export class ToolInstanceResolver {
     @Args('newOwnerUserId') newOwnerUserId: string,
     @CurrentUserId() userId: string | null,
   ) {
-    if (!userId) throw new Error('Unauthorized');
+    if (!userId) throw new UnauthenticatedError('Unauthorized');
     const updated = await this.toolInstanceService.transferOwnership(
       instanceId,
       userId,
@@ -186,13 +191,13 @@ export class ToolInstanceResolver {
     @Args('instanceId') instanceId: string,
     @CurrentUserId() userId: string | null,
   ) {
-    if (!userId) throw new Error('Unauthorized');
+    if (!userId) throw new UnauthenticatedError('Unauthorized');
 
     const isOwner = await this.toolInstanceService.isOwner(instanceId, userId);
-    if (!isOwner) throw new Error('Forbidden');
+    if (!isOwner) throw new PermissionDeniedError('Forbidden');
 
     const inst = await this.toolInstanceService.getById(instanceId);
-    if (!inst) throw new Error('Tool instance not found');
+    if (!inst) throw new NotFoundError('Tool instance');
 
     const tool = this.toolRegistry.get(inst.toolType);
     if (!tool.compile) return null;
@@ -214,7 +219,7 @@ export class ToolInstanceResolver {
     @CurrentUserId() userId: string | null,
   ) {
     await Promise.resolve();
-    if (!userId) throw new Error('Unauthorized');
+    if (!userId) throw new UnauthenticatedError('Unauthorized');
     return this.toolInstanceService.archive(instanceId, userId);
   }
 
@@ -224,7 +229,7 @@ export class ToolInstanceResolver {
     @CurrentUserId() userId: string | null,
   ) {
     await Promise.resolve();
-    if (!userId) throw new Error('Unauthorized');
+    if (!userId) throw new UnauthenticatedError('Unauthorized');
     return this.toolInstanceService.unarchive(instanceId, userId);
   }
 
@@ -234,7 +239,7 @@ export class ToolInstanceResolver {
     @CurrentUserId() userId: string | null,
   ) {
     await Promise.resolve();
-    if (!userId) throw new Error('Unauthorized');
+    if (!userId) throw new UnauthenticatedError('Unauthorized');
     return this.toolInstanceService.delete(instanceId, userId);
   }
 
@@ -244,7 +249,7 @@ export class ToolInstanceResolver {
     @CurrentUserId() userId: string | null,
   ) {
     await Promise.resolve();
-    if (!userId) throw new Error('Unauthorized');
+    if (!userId) throw new UnauthenticatedError('Unauthorized');
     return this.toolInstanceService.listMembers(instanceId, userId);
   }
 
@@ -254,16 +259,16 @@ export class ToolInstanceResolver {
     @CurrentUserId() userId: string | null,
   ) {
     await Promise.resolve();
-    if (!userId) throw new Error('Unauthorized');
+    if (!userId) throw new UnauthenticatedError('Unauthorized');
     return this.toolInstanceService.leave(instanceId, userId);
   }
 
   @Query(() => [MyInvite])
   async myPendingInvites(@CurrentUserId() userId: string | null) {
-    if (!userId) throw new Error('Unauthorized');
+    if (!userId) throw new UnauthenticatedError('Unauthorized');
 
     const email = await this.users.getEmailById(userId);
-    if (!email) throw new Error('User email not found');
+    if (!email) throw new NotFoundError('User email');
 
     const invites = await this.invites.myPendingInvites(email);
 
@@ -290,10 +295,10 @@ export class ToolInstanceResolver {
     @Args('inviteId') inviteId: string,
     @CurrentUserId() userId: string | null,
   ) {
-    if (!userId) throw new Error('Unauthorized');
+    if (!userId) throw new UnauthenticatedError('Unauthorized');
 
     const email = await this.users.getEmailById(userId);
-    if (!email) throw new Error('User email not found');
+    if (!email) throw new NotFoundError('User email');
 
     return this.invites.declineInvite(inviteId, email);
   }

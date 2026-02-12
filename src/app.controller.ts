@@ -12,4 +12,11 @@ export class AppController {
   getHello(): string {
     return this.appService.getHello();
   }
+
+  @Get('error-test')
+  @ApiOperation({ summary: 'Test error handling' })
+  getError(): string {
+    const { UnauthenticatedError } = require('./common/errors/domain-errors');
+    throw new UnauthenticatedError('Test unauthenticated error', 'Some extra cause info');
+  }
 }
