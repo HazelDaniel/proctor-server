@@ -1,5 +1,5 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, desc } from 'drizzle-orm';
 import {
   toolInstanceInvites,
   toolInstanceMembers,
@@ -208,5 +208,18 @@ export class InvitesService {
       .set({ status: 'declined' })
       .where(eq(toolInstanceInvites.id, inviteId));
     return true;
+  }
+
+  async listSentPendingInvites(userId: string) {
+    return this.db
+      .select()
+      .from(toolInstanceInvites)
+      .where(
+        and(
+          eq(toolInstanceInvites.createdByUserId, userId),
+          eq(toolInstanceInvites.status, 'pending'),
+        ),
+      )
+      .orderBy(desc(toolInstanceInvites.createdAt));
   }
 }

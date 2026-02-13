@@ -62,6 +62,18 @@ export class MyInvite {
 
   // Useful for UI
   @Field({ nullable: true }) toolType?: string;
+  @Field() inviterEmail!: string;
+}
+
+@ObjectType()
+export class SentInvite {
+  @Field(() => ID) id!: string;
+  @Field(() => ID) instanceId!: string;
+  @Field() invitedEmail!: string;
+  @Field() status!: string;
+  @Field() createdAt!: string;
+  @Field() expiresAt!: string;
+  @Field({ nullable: true }) toolType?: string;
 }
 
 @ObjectType()

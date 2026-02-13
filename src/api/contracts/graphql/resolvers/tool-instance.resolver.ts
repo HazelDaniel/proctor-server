@@ -7,6 +7,7 @@ import {
   CreateInviteResult,
   CreateToolInstanceResult,
   MyInvite,
+  SentInvite,
   ToolInstance,
   ToolInstanceInvite,
   ToolInstanceMember,
@@ -269,7 +270,7 @@ export class ToolInstanceResolver {
   }
 
   @Query(() => [MyInvite])
-  async myPendingInvites(@CurrentUserId() userId: string | null) {
+  async myReceivedInvitations(@CurrentUserId() userId: string | null) {
     if (!userId) throw new UnauthenticatedError('Unauthorized');
 
     const email = await this.users.getEmailById(userId);
@@ -277,13 +278,36 @@ export class ToolInstanceResolver {
 
     const invites = await this.invites.myPendingInvites(email);
 
-    // Optionally enrich with toolType for UI without extra round trips
-    // (small N, acceptable)
     const out: MyInvite[] = [];
     for (const inv of invites) {
       const inst = await this.toolInstanceService.getById(inv.instanceId);
+      const inviterEmail = await this.users.getEmailById(inv.createdByUserId);
+
       out.push({
         inviteId: inv.id,
+        instanceId: inv.instanceId,
+        invitedEmail: inv.invitedEmail,
+        status: inv.status,
+        createdAt: String(inv.createdAt),
+        expiresAt: String(inv.expiresAt),
+        toolType: inst?.toolType,
+        inviterEmail: inviterEmail ?? 'Unknown',
+      });
+    }
+    return out;
+  }
+
+  @Query(() => [SentInvite])
+  async myPendingInvites(@CurrentUserId() userId: string | null) {
+    if (!userId) throw new UnauthenticatedError('Unauthorized');
+
+    const invites = await this.invites.listSentPendingInvites(userId);
+
+    const out: SentInvite[] = [];
+    for (const inv of invites) {
+      const inst = await this.toolInstanceService.getById(inv.instanceId);
+      out.push({
+        id: inv.id,
         instanceId: inv.instanceId,
         invitedEmail: inv.invitedEmail,
         status: inv.status,

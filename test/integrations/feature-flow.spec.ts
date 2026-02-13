@@ -134,13 +134,13 @@ describe('Feature Flow: Authentication, Life Cycle, and Collaboration', () => {
 
     test('should decline an invite', async () => {
       await resolver.createToolInstanceInvite(instanceId, memberEmail, ownerId);
-      const myInvites = await resolver.myPendingInvites(memberId);
+      const myInvites = await resolver.myReceivedInvitations(memberId);
       const inviteId = myInvites.find(i => i.instanceId === instanceId)!.inviteId;
 
       const declineRes = await resolver.declineInvite(inviteId, memberId);
       expect(declineRes).toBe(true);
 
-      const updatedMyInvites = await resolver.myPendingInvites(memberId);
+      const updatedMyInvites = await resolver.myReceivedInvitations(memberId);
       expect(updatedMyInvites.some(inv => inv.inviteId === inviteId)).toBe(false);
     });
   });
