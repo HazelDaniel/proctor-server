@@ -45,6 +45,23 @@ export class ToolInstanceResolver {
     return this.toolInstanceService.listForUser(userId, toolType);
   }
 
+  @Query(() => [ToolInstance])
+  async myArchivedToolInstances(
+    @Args('toolType', { nullable: true }) toolType: string,
+    @CurrentUserId() userId: string | null,
+  ) {
+    if (!userId) throw new UnauthenticatedError('Unauthorized');
+    const instances = await this.toolInstanceService.listArchivedForUser(
+      userId,
+      toolType,
+    );
+    return instances.map((inst) => ({
+      ...inst,
+      createdAt: String(inst.createdAt),
+      archivedAt: inst.archivedAt ? String(inst.archivedAt) : undefined,
+    }));
+  }
+
   @Mutation(() => CreateInviteResult)
   async createToolInstanceInvite(
     @Args('instanceId') instanceId: string,

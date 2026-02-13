@@ -1,6 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { and, inArray, isNull } from 'drizzle-orm';
+import { and, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { eq } from 'drizzle-orm';
 import {
   documents,
@@ -148,6 +148,21 @@ export class ToolInstanceService {
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return Array.from(byId.values());
+  }
+
+  async listArchivedForUser(userId: string, toolType?: string) {
+    const where = toolType
+      ? and(
+          eq(toolInstances.ownerUserId, userId),
+          eq(toolInstances.toolType, toolType),
+          isNotNull(toolInstances.archivedAt),
+        )
+      : and(
+          eq(toolInstances.ownerUserId, userId),
+          isNotNull(toolInstances.archivedAt),
+        );
+
+    return this.db.select().from(toolInstances).where(where);
   }
 
   async create(toolType: string, ownerUserId: string) {
