@@ -1,5 +1,4 @@
-// Collaboration Layer: Document registry (seq tracking + snapshot policy + eviction)
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import type { Doc } from 'yjs' with { 'resolution-mode': 'import' };
 import { ToolRegistry } from 'src/tools/registry';
 import type { ActiveDocument, DocSession } from 'src/tools/types';
@@ -10,14 +9,30 @@ import type * as AwarenessNS from 'y-protocols/awareness' with {
 };
 
 @Injectable()
-export class DocumentRegistry {
+export class DocumentRegistry implements OnModuleInit, OnModuleDestroy {
   private readonly docs = new Map<string, ActiveDocument>();
   private readonly EVICTION_TIMEOUT_MS = 60_000;
+  private evictionInterval: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly toolRegistry: ToolRegistry,
     private readonly persistence: ToolPersistenceService,
   ) {}
+
+  onModuleInit() {
+    this.evictionInterval = setInterval(() => {
+      void this.evictIdleDocs();
+    }, 10_000);
+  }
+
+  onModuleDestroy() {
+    if (this.evictionInterval) {
+      clearInterval(this.evictionInterval);
+      this.evictionInterval = null;
+    }
+  }
+  
+  // ... existing methods ...
 
   async acquire(docId: string, toolType: string): Promise<DocSession> {
     let entry: ActiveDocument | undefined = this.docs.get(docId);
@@ -127,7 +142,7 @@ export class DocumentRegistry {
     return entry;
   }
 
-  private async evictIdleDocs() {
+  public async evictIdleDocs() {
     const now = Date.now();
 
     for (const [docId, entry] of this.docs) {

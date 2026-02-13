@@ -10,6 +10,7 @@ import { AuthModule } from './auth/auth.module';
 import { AppGraphqlModule } from './api/v1/graphql/graphql.module';
 import { APP_FILTER } from '@nestjs/core';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
+import { ScheduleModule } from '@nestjs/schedule';
 
 const envSchema = z.object({
   DATABASE_URL: z.url(),
