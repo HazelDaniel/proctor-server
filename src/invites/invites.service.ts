@@ -24,7 +24,8 @@ export class InvitesService {
   async createInvite(
     instanceId: string,
     ownerUserId: string,
-    invitedEmail: string,
+    ownerEmail: string,
+    inviteeEmail: string,
   ) {
     const inst = await this.db
       .select()
@@ -34,7 +35,7 @@ export class InvitesService {
     if (!inst[0]) throw new NotFoundError('Tool instance');
     if (inst[0].ownerUserId !== ownerUserId) throw new PermissionDeniedError('Forbidden');
 
-    const email = normalizeEmail(invitedEmail);
+    const email = normalizeEmail(inviteeEmail);
     const token = newToken();
     const tokenHash = sha256Hex(token);
 
@@ -46,7 +47,8 @@ export class InvitesService {
     await this.db.insert(toolInstanceInvites).values({
       id: crypto.randomUUID(),
       instanceId,
-      invitedEmail: email,
+      inviteeEmail: email,
+      inviterEmail: ownerEmail, // We should pass ownerEmail to this method now
       tokenHash,
       status: 'pending',
       createdByUserId: ownerUserId,
@@ -56,7 +58,7 @@ export class InvitesService {
 
     // NOTE: in production, we email the raw token link.
     // but this is okay atm
-    return { token, invitedEmail: email, expiresAt: expiresAt.toISOString() };
+    return { token, inviteeEmail: email, expiresAt: expiresAt.toISOString() };
   }
 
   async listInvites(instanceId: string, ownerUserId: string) {
@@ -104,7 +106,7 @@ export class InvitesService {
     return true;
   }
 
-  async myPendingInvites(userEmail: string) {
+  async myReceivedInvitations(userEmail: string) {
     const email = normalizeEmail(userEmail);
 
     // Optional: auto-expire any that are past expiresAt
@@ -115,7 +117,7 @@ export class InvitesService {
       .from(toolInstanceInvites)
       .where(
         and(
-          eq(toolInstanceInvites.invitedEmail, email),
+          eq(toolInstanceInvites.inviteeEmail, email),
           eq(toolInstanceInvites.status, 'pending'),
         ),
       );
@@ -163,7 +165,7 @@ export class InvitesService {
 
     // Prevent token forwarding: only the invited email can accept
     const email = normalizeEmail(currentUserEmail);
-    if (email !== invite.invitedEmail) throw new ValidationError('Invite email mismatch');
+    if (email !== invite.inviteeEmail) throw new ValidationError('Invite email mismatch');
 
     try {
       await this.db.insert(toolInstanceMembers).values({
@@ -199,7 +201,7 @@ export class InvitesService {
 
     const inv = rows[0];
 
-    if (inv.invitedEmail !== email) throw new PermissionDeniedError('Forbidden');
+    if (inv.inviteeEmail !== email) throw new PermissionDeniedError('Forbidden');
     if (inv.status !== 'pending') return true;
 
     // decline means: stop showing in pending list

@@ -120,11 +120,12 @@ describe('Feature Flow: Authentication, Life Cycle, and Collaboration', () => {
       // Create invite
       const inviteRes = await resolver.createToolInstanceInvite(instanceId, memberEmail, ownerId);
       expect(inviteRes.token).toBeDefined();
-      expect(inviteRes.invitedEmail).toBe(memberEmail);
+      expect(inviteRes.inviteeEmail).toBe(memberEmail);
 
       // List invites as owner
       const invites = await resolver.toolInstanceInvites(instanceId, ownerId);
-      expect(invites.some(inv => inv.invitedEmail === memberEmail)).toBe(true);
+      expect(invites.some(inv => inv.inviteeEmail === memberEmail)).toBe(true);
+      expect(invites.some(inv => inv.inviterEmail === ownerEmail)).toBe(true);
 
       // Check pending invites for member
       const myInvites = await resolver.myReceivedInvitations(memberId);
@@ -142,7 +143,7 @@ describe('Feature Flow: Authentication, Life Cycle, and Collaboration', () => {
     test('should revoke an invite', async () => {
       await resolver.createToolInstanceInvite(instanceId, memberEmail, ownerId);
       const invites = await resolver.toolInstanceInvites(instanceId, ownerId);
-      const inviteId = invites.find(i => i.invitedEmail === memberEmail)!.id;
+      const inviteId = invites.find(i => i.inviteeEmail === memberEmail)!.id;
 
       const revokeRes = await resolver.revokeToolInstanceInvite(inviteId, ownerId);
       expect(revokeRes).toBe(true);

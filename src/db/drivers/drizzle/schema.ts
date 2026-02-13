@@ -100,7 +100,8 @@ export const toolInstanceInvites = pgTable(
     instanceId: uuid('instance_id')
       .notNull()
       .references(() => toolInstances.id, { onDelete: 'cascade' }),
-    invitedEmail: text('invited_email').notNull(),
+    inviteeEmail: text('invitee_email').notNull(),
+    inviterEmail: text('inviter_email').notNull(),
     tokenHash: text('token_hash').notNull(),
     status: text('status').notNull(),
     createdByUserId: text('created_by_user_id').notNull(),
@@ -118,7 +119,9 @@ export const toolInstanceInvites = pgTable(
       t.tokenHash,
     ),
     instIdx: index('tool_instance_invites_instance_idx').on(t.instanceId),
-    emailIdx: index('tool_instance_invites_email_idx').on(t.invitedEmail),
+    inviteeEmailIdx: index('tool_instance_invites_invitee_email_idx').on(
+      t.inviteeEmail,
+    ),
     statusIdx: index('tool_instance_invites_status_idx').on(t.status),
   }),
 );

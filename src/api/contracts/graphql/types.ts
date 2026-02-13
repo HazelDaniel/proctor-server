@@ -31,7 +31,8 @@ export class CreateToolInstanceResult {
 export class ToolInstanceInvite {
   @Field(() => ID) id!: string;
   @Field(() => ID) instanceId!: string;
-  @Field() invitedEmail!: string;
+  @Field() inviteeEmail!: string;
+  @Field() inviterEmail!: string;
   @Field() status!: string;
   @Field() createdAt!: string;
   @Field() expiresAt!: string;
@@ -43,7 +44,7 @@ export class ToolInstanceInvite {
 export class CreateInviteResult {
   // NOTE: In production we’d return true and email the link.
   @Field() token!: string;
-  @Field() invitedEmail!: string;
+  @Field() inviteeEmail!: string;
   @Field() expiresAt!: string;
 }
 
@@ -57,7 +58,7 @@ export class ToolInstanceMember {
 export class MyInvite {
   @Field(() => ID) inviteId!: string;
   @Field(() => ID) instanceId!: string;
-  @Field() invitedEmail!: string;
+  @Field() inviteeEmail!: string;
   @Field() status!: string;
   @Field() expiresAt!: string;
   @Field() createdAt!: string;
@@ -71,7 +72,7 @@ export class MyInvite {
 export class SentInvite {
   @Field(() => ID) id!: string;
   @Field(() => ID) instanceId!: string;
-  @Field() invitedEmail!: string;
+  @Field() inviteeEmail!: string;
   @Field() status!: string;
   @Field() createdAt!: string;
   @Field() expiresAt!: string;

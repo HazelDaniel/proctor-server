@@ -69,7 +69,12 @@ export class ToolInstanceResolver {
     @CurrentUserId() userId: string | null,
   ) {
     if (!userId) throw new UnauthenticatedError('Unauthorized');
-    return this.invites.createInvite(instanceId, userId, email);
+    
+    // Need owner email now
+    const ownerEmail = await this.users.getEmailById(userId);
+    if (!ownerEmail) throw new NotFoundError('User email');
+
+    return this.invites.createInvite(instanceId, userId, ownerEmail, email);
   }
 
   @Query(() => [ToolInstanceInvite])
@@ -82,7 +87,8 @@ export class ToolInstanceResolver {
     return rows.map((r) => ({
       id: r.id,
       instanceId: r.instanceId,
-      invitedEmail: r.invitedEmail,
+      inviteeEmail: r.inviteeEmail,
+      inviterEmail: r.inviterEmail,
       status: r.status,
       createdAt: String(r.createdAt),
       expiresAt: String(r.expiresAt),
@@ -293,22 +299,22 @@ export class ToolInstanceResolver {
     const email = await this.users.getEmailById(userId);
     if (!email) throw new NotFoundError('User email');
 
-    const invites = await this.invites.myPendingInvites(email);
+    const invites = await this.invites.myReceivedInvitations(email);
 
     const out: MyInvite[] = [];
     for (const inv of invites) {
       const inst = await this.toolInstanceService.getById(inv.instanceId);
-      const inviterEmail = await this.users.getEmailById(inv.createdByUserId);
+      // const inviterEmail = await this.users.getEmailById(inv.createdByUserId);
 
       out.push({
         inviteId: inv.id,
         instanceId: inv.instanceId,
-        invitedEmail: inv.invitedEmail,
+        inviteeEmail: inv.inviteeEmail,
         status: inv.status,
         createdAt: String(inv.createdAt),
         expiresAt: String(inv.expiresAt),
         toolType: inst?.toolType,
-        inviterEmail: inviterEmail ?? 'Unknown',
+        inviterEmail: inv.inviterEmail,
       });
     }
     return out;
@@ -326,7 +332,7 @@ export class ToolInstanceResolver {
       out.push({
         id: inv.id,
         instanceId: inv.instanceId,
-        invitedEmail: inv.invitedEmail,
+        inviteeEmail: inv.inviteeEmail,
         status: inv.status,
         createdAt: String(inv.createdAt),
         expiresAt: String(inv.expiresAt),
