@@ -105,7 +105,12 @@ export class ToolInstanceResolver {
       toolType,
       ownerUserId,
     );
-    return { instance };
+    return {
+      instance: {
+        ...instance,
+        createdAt: String(instance.createdAt),
+      },
+    };
   }
 
   @Mutation(() => ValidationResult)

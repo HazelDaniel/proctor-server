@@ -10,6 +10,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { ToolInstanceResolver } from '../../src/api/contracts/graphql/resolvers/tool-instance.resolver';
 import { SchemaDesignTool } from '../../src/tools/implementations/schema-design/tool';
 import { AuthResolver } from '../../src/api/contracts/graphql/resolvers/auth.resolver';
+import { ConfigModule } from '@nestjs/config';
+import { DbModule } from '../../src/db/db.module';
 
 // If your services require Drizzle db via module/provider, import the module that provides it instead.
 // Here we assume your db client is a singleton import and services just use it internally.
@@ -17,6 +19,8 @@ import { AuthResolver } from '../../src/api/contracts/graphql/resolvers/auth.res
 export async function createTestingModule() {
   const moduleRef = await Test.createTestingModule({
     imports: [
+      ConfigModule.forRoot({ isGlobal: true }),
+      DbModule,
       JwtModule.register({
         secret: process.env.JWT_SECRET || 'test-secret-key-for-integration-tests',
         signOptions: { algorithm: 'HS256' },

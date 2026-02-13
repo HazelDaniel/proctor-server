@@ -1,11 +1,15 @@
 import { startPostgres } from '../utils/postgres.js';
 import { runMigrations } from '../utils/migrate.js';
 import type { ToolInstanceService } from '../../src/toolinstance/toolinstance.service.js';
+import type { InvitesService } from '../../src/invites/invites.service.js';
+import type { UsersService } from '../../src/users/users.service.js';
 import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 
 describe('InvitesService (integration)', () => {
   let container: StartedPostgreSqlContainer;
   let toolSvc: ToolInstanceService;
+  let inviteSvc: InvitesService;
+  let userSvc: UsersService;
 
   beforeAll(async () => {
     const pg = await startPostgres();
@@ -17,10 +21,14 @@ describe('InvitesService (integration)', () => {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const { createTestingModule } = await import('../utils/test-app.js');
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const { ToolInstanceService: ServiceClass } = await import('../../src/toolinstance/toolinstance.service.js');
+    const { ToolInstanceService: ToolInstanceServiceClass } = await import('../../src/toolinstance/toolinstance.service.js');
+    const { InvitesService: InvitesServiceClass } = await import('../../src/invites/invites.service.js');
+    const { UsersService: UsersServiceClass } = await import('../../src/users/users.service.js');
 
     const moduleRef = await createTestingModule();
-    toolSvc = moduleRef.get(ServiceClass);
+    toolSvc = moduleRef.get(ToolInstanceServiceClass);
+    inviteSvc = moduleRef.get(InvitesServiceClass);
+    userSvc = moduleRef.get(UsersServiceClass);
   });
 
   afterAll(async () => {
@@ -31,13 +39,8 @@ describe('InvitesService (integration)', () => {
   });
 
   test('create invite -> shows in myPendingInvites -> accept adds membership', async () => {
-    const { InvitesService } = await import('src/invites/invites.service.js');
-    const { UsersService } = await import('src/users/users.service.js');
     const { db } = await import('src/db/db.provider.js');
     const { users } = await import('src/db/drivers/drizzle/schema.js');
-
-    const inviteSvc = new InvitesService();
-    const userSvc = new UsersService();
 
     const ownerId = 'owner-1';
     const inst = await toolSvc.create('schema-design', ownerId);
@@ -67,10 +70,6 @@ describe('InvitesService (integration)', () => {
   });
 
   test('decline hides invite from pending', async () => {
-    const { InvitesService } = await import('src/invites/invites.service.js');
-
-    const inviteSvc = new InvitesService();
-
     const ownerId = 'owner-2';
     const inst = await toolSvc.create('schema-design', ownerId);
 
@@ -82,7 +81,6 @@ describe('InvitesService (integration)', () => {
     );
 
     const pending1 = await inviteSvc.myPendingInvites(invitedEmail);
-    const match = pending1.find((x: { tokenHash: string }) => x.tokenHash); // tokenHash not returned; so just use first
     const inv = pending1[0];
     expect(inv).toBeTruthy();
 

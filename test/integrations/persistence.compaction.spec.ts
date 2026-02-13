@@ -11,6 +11,10 @@ describe('PersistenceService compaction (integration)', () => {
     container = pg.container;
     process.env.DATABASE_URL = pg.url;
     runMigrations();
+    
+    // Initialize DB provider singleton
+    const { createDb } = await import('src/db/db.provider.js');
+    createDb(pg.url);
   });
 
   afterAll(async () => {
@@ -28,7 +32,7 @@ describe('PersistenceService compaction (integration)', () => {
     const { documentUpdates, documents } =
       await import('src/db/drivers/drizzle/schema.js');
 
-    const svc = new PersistenceService();
+    const svc = new PersistenceService(db);
     const docId = '00000000-0000-0000-0000-000000000001';
 
     // Insert parent document to satisfy FK

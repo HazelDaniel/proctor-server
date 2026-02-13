@@ -154,11 +154,13 @@ export class ToolInstanceService {
     const id = randomUUID();
     const docId = randomUUID();
 
-    await this.db.insert(toolInstances).values({ id, toolType, docId, ownerUserId });
-    return { id, toolType, docId, ownerUserId };
+    const [row] = await this.db.insert(toolInstances).values({ id, toolType, docId, ownerUserId }).returning();
+    return row;
   }
 
   async canAccess(instanceId: string, userId: string): Promise<boolean> {
+    if (!this.isValidUuid(instanceId)) return false;
+
     const rows = await this.db
       .select({ id: toolInstances.id })
       .from(toolInstances)
@@ -266,6 +268,7 @@ export class ToolInstanceService {
   }
 
   async getById(instanceId: string) {
+    if (!this.isValidUuid(instanceId)) return null;
     const [instance] = await this.db
       .select()
       .from(toolInstances)
@@ -273,6 +276,12 @@ export class ToolInstanceService {
       .limit(1);
 
     return instance ?? null;
+  }
+
+  private isValidUuid(id: string): boolean {
+    const uuidRegex =
+      /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    return uuidRegex.test(id);
   }
 
   async archive(instanceId: string, ownerUserId: string) {
