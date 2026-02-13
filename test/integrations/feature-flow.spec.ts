@@ -87,6 +87,25 @@ describe('Feature Flow: Authentication, Life Cycle, and Collaboration', () => {
       expect(memberList.some(i => i.id === memberInstance.instance.id)).toBe(true);
       expect(memberList.some(i => i.id === ownerInstance.instance.id)).toBe(false);
     });
+
+    test('should correctly reflect ownership via iOwn field', async () => {
+      const ownerInstance = await resolver.createToolInstance('schema-design', ownerId);
+      
+      // Owner check
+      const ownerList = await resolver.toolInstances(undefined as any, ownerId);
+      const myInst = ownerList.find(i => i.id === ownerInstance.instance.id);
+      expect(myInst).toBeDefined();
+      expect(resolver.iOwn(myInst as any, ownerId)).toBe(true);
+      
+      // Share with member (add as member)
+      await resolver.addToolInstanceMember(ownerInstance.instance.id, memberId, ownerId);
+      
+      // Member check
+      const memberList = await resolver.toolInstances(undefined as any, memberId);
+      const sharedInst = memberList.find(i => i.id === ownerInstance.instance.id);
+      expect(sharedInst).toBeDefined();
+      expect(resolver.iOwn(sharedInst as any, memberId)).toBe(false);
+    });
   });
 
   describe('Invitation Flow', () => {
@@ -108,7 +127,7 @@ describe('Feature Flow: Authentication, Life Cycle, and Collaboration', () => {
       expect(invites.some(inv => inv.invitedEmail === memberEmail)).toBe(true);
 
       // Check pending invites for member
-      const myInvites = await resolver.myPendingInvites(memberId);
+      const myInvites = await resolver.myReceivedInvitations(memberId);
       expect(myInvites.some(inv => inv.instanceId === instanceId)).toBe(true);
 
       // Accept invite

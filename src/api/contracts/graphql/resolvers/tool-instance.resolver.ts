@@ -1,4 +1,4 @@
-import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args, ResolveField, Parent } from '@nestjs/graphql';
 import { ToolRegistry } from 'src/tools/registry';
 import { DocumentRegistry } from 'src/document-registry/document-registry.service';
 import { ToolInstanceService } from 'src/toolinstance/toolinstance.service';
@@ -22,7 +22,7 @@ import {
   UnauthenticatedError,
 } from 'src/common/errors/domain-errors';
 
-@Resolver()
+@Resolver(() => ToolInstance)
 export class ToolInstanceResolver {
   constructor(
     private readonly toolInstanceService: ToolInstanceService,
@@ -347,5 +347,22 @@ export class ToolInstanceResolver {
     if (!email) throw new NotFoundError('User email');
 
     return this.invites.declineInvite(inviteId, email);
+  }
+
+  @ResolveField(() => Boolean)
+  iOwn(
+    @Parent() toolInstance: ToolInstance,
+    @CurrentUserId() userId: string | null,
+  ): boolean {
+    // If no user is logged in, they can't own anything
+    if (!userId) return false;
+    
+    // Check if the current user matches the ownerUserId of the instance
+    // Note: We need to make sure toolInstance actually has ownerUserId. 
+    // The ToolInstance TYPE doesn't have it, but the object returned from service (Drizzle result) DOES.
+    // We can cast to any or define an intersection type to access it safe-ishly.
+    
+    const inst = toolInstance as any; 
+    return inst.ownerUserId === userId;
   }
 }

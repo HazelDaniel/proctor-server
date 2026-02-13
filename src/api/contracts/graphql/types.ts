@@ -7,6 +7,7 @@ export class ToolInstance {
   @Field(() => ID) docId!: string;
   @Field() createdAt!: string;
   @Field({ nullable: true }) archivedAt?: string;
+  @Field(() => Boolean) iOwn!: boolean;
 }
 
 @ObjectType()
