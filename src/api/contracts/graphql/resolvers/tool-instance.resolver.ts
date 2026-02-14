@@ -21,6 +21,10 @@ import {
   PermissionDeniedError,
   UnauthenticatedError,
 } from 'src/common/errors/domain-errors';
+import { UseGuards } from '@nestjs/common';
+import { SignedInGuard } from 'src/common/guards/signed-in.guard';
+import { ToolInstanceAccessGuard } from 'src/common/guards/tool-instance-access.guard';
+import { CheckUserOwnership, UserOwnershipGuard } from 'src/common/guards/user-ownership.guard';
 
 @Resolver(() => ToolInstance)
 export class ToolInstanceResolver {
@@ -33,24 +37,20 @@ export class ToolInstanceResolver {
   ) {}
 
   @Query(() => [ToolInstance])
+  @UseGuards(SignedInGuard)
   async toolInstances(
     @Args('toolType', { nullable: true }) toolType: string,
-    @CurrentUserId() userId: string | null,
+    @CurrentUserId() userId: string,
   ) {
-    if (!userId) throw new UnauthenticatedError('Unauthorized');
-    await Promise.resolve();
-
-    // minimal approach: we list only owned instances for now
-    // NOTE: (we can extend to include memberships)
     return this.toolInstanceService.listForUser(userId, toolType);
   }
 
   @Query(() => [ToolInstance])
+  @UseGuards(SignedInGuard)
   async myArchivedToolInstances(
     @Args('toolType', { nullable: true }) toolType: string,
-    @CurrentUserId() userId: string | null,
+    @CurrentUserId() userId: string,
   ) {
-    if (!userId) throw new UnauthenticatedError('Unauthorized');
     const instances = await this.toolInstanceService.listArchivedForUser(
       userId,
       toolType,
@@ -63,26 +63,22 @@ export class ToolInstanceResolver {
   }
 
   @Mutation(() => CreateInviteResult)
+  @UseGuards(SignedInGuard, ToolInstanceAccessGuard)
   async createToolInstanceInvite(
     @Args('instanceId') instanceId: string,
     @Args('email') email: string,
-    @CurrentUserId() userId: string | null,
+    @CurrentUserId() userId: string,
   ) {
-    if (!userId) throw new UnauthenticatedError('Unauthorized');
     
-    // Need owner email now
-    const ownerEmail = await this.users.getEmailById(userId);
-    if (!ownerEmail) throw new NotFoundError('User email');
-
-    return this.invites.createInvite(instanceId, userId, ownerEmail, email);
+    return this.invites.createInvite(instanceId, userId, email);
   }
 
   @Query(() => [ToolInstanceInvite])
+  @UseGuards(SignedInGuard, ToolInstanceAccessGuard)
   async toolInstanceInvites(
     @Args('instanceId') instanceId: string,
-    @CurrentUserId() userId: string | null,
+    @CurrentUserId() userId: string,
   ) {
-    if (!userId) throw new UnauthenticatedError('Unauthorized');
     const rows = await this.invites.listInvites(instanceId, userId);
     return rows.map((r) => ({
       id: r.id,
@@ -98,20 +94,20 @@ export class ToolInstanceResolver {
   }
 
   @Mutation(() => Boolean)
+  @UseGuards(SignedInGuard)
   async revokeToolInstanceInvite(
     @Args('inviteId') inviteId: string,
-    @CurrentUserId() userId: string | null,
+    @CurrentUserId() userId: string,
   ) {
-    if (!userId) throw new UnauthenticatedError('Unauthorized');
     return this.invites.revokeInvite(inviteId, userId);
   }
 
   @Mutation(() => Boolean)
+  @UseGuards(SignedInGuard)
   async acceptToolInstanceInvite(
     @Args('token') token: string,
-    @CurrentUserId() userId: string | null,
+    @CurrentUserId() userId: string,
   ) {
-    if (!userId) throw new UnauthenticatedError('Unauthorized');
 
     const email = await this.users.getEmailById(userId);
     if (!email) throw new NotFoundError('User email');
@@ -120,11 +116,11 @@ export class ToolInstanceResolver {
   }
 
   @Mutation(() => CreateToolInstanceResult)
+  @UseGuards(SignedInGuard)
   async createToolInstance(
     @Args('toolType') toolType: string,
     @CurrentUserId() ownerUserId: string,
   ) {
-    if (!ownerUserId) throw new UnauthenticatedError('Unauthorized!');
     const instance = await this.toolInstanceService.create(
       toolType,
       ownerUserId,
@@ -138,17 +134,15 @@ export class ToolInstanceResolver {
   }
 
   @Mutation(() => ValidationResult)
+  @UseGuards(SignedInGuard, ToolInstanceAccessGuard)
   async validateToolInstance(
     @Args('instanceId') instanceId: string,
-    @CurrentUserId() userId: string | null,
+    @CurrentUserId() userId: string,
   ) {
-    if (!userId) throw new UnauthenticatedError('Unauthorized');
     const instance = await this.toolInstanceService.getById(instanceId);
     if (!instance) {
       throw new NotFoundError('Tool instance');
     }
-    if (!(await this.toolInstanceService.canAccess(instanceId, userId)))
-      throw new PermissionDeniedError('Forbidden');
 
     const tool = this.toolRegistry.get(instance.toolType);
     if (!tool.validate) {
@@ -168,13 +162,12 @@ export class ToolInstanceResolver {
   }
 
   @Mutation(() => Boolean)
+  @UseGuards(SignedInGuard)
   async addToolInstanceMember(
     @Args('instanceId') instanceId: string,
     @Args('userId') invitedUserId: string,
-    @CurrentUserId() userId: string | null,
+    @CurrentUserId() userId: string,
   ) {
-    if (!userId) throw new UnauthenticatedError('Unauthorized');
-
     const isOwner = await this.toolInstanceService.isOwner(instanceId, userId);
     if (!isOwner) throw new PermissionDeniedError('Forbidden');
 
@@ -184,24 +177,24 @@ export class ToolInstanceResolver {
   }
 
   @Mutation(() => Boolean)
+  @UseGuards(SignedInGuard)
   async removeToolInstanceMember(
     @Args('instanceId') instanceId: string,
     @Args('userId') memberUserId: string,
-    @CurrentUserId() userId: string | null,
+    @CurrentUserId() userId: string,
   ) {
-    if (!userId) throw new UnauthenticatedError('Unauthorized');
     if (!(await this.toolInstanceService.isOwner(instanceId, userId)))
       throw new PermissionDeniedError('Forbidden');
     return this.toolInstanceService.removeMember(instanceId, memberUserId);
   }
 
   @Mutation(() => ToolInstance)
+  @UseGuards(SignedInGuard)
   async transferToolInstanceOwnership(
     @Args('instanceId') instanceId: string,
     @Args('newOwnerUserId') newOwnerUserId: string,
-    @CurrentUserId() userId: string | null,
+    @CurrentUserId() userId: string,
   ) {
-    if (!userId) throw new UnauthenticatedError('Unauthorized');
     const updated = await this.toolInstanceService.transferOwnership(
       instanceId,
       userId,
@@ -216,12 +209,11 @@ export class ToolInstanceResolver {
   }
 
   @Mutation(() => String, { nullable: true })
+  @UseGuards(SignedInGuard, ToolInstanceAccessGuard)
   async compileToolInstance(
     @Args('instanceId') instanceId: string,
-    @CurrentUserId() userId: string | null,
+    @CurrentUserId() userId: string,
   ) {
-    if (!userId) throw new UnauthenticatedError('Unauthorized');
-
     const isOwner = await this.toolInstanceService.isOwner(instanceId, userId);
     if (!isOwner) throw new PermissionDeniedError('Forbidden');
 
@@ -243,58 +235,58 @@ export class ToolInstanceResolver {
   }
 
   @Mutation(() => Boolean)
+  @UseGuards(SignedInGuard)
   async archiveToolInstance(
     @Args('instanceId') instanceId: string,
-    @CurrentUserId() userId: string | null,
+    @CurrentUserId() userId: string,
   ) {
     await Promise.resolve();
-    if (!userId) throw new UnauthenticatedError('Unauthorized');
     return this.toolInstanceService.archive(instanceId, userId);
   }
 
   @Mutation(() => Boolean)
+  @UseGuards(SignedInGuard)
   async unarchiveToolInstance(
     @Args('instanceId') instanceId: string,
-    @CurrentUserId() userId: string | null,
+    @CurrentUserId() userId: string,
   ) {
     await Promise.resolve();
-    if (!userId) throw new UnauthenticatedError('Unauthorized');
     return this.toolInstanceService.unarchive(instanceId, userId);
   }
 
   @Mutation(() => Boolean)
+  @UseGuards(SignedInGuard)
   async deleteToolInstance(
     @Args('instanceId') instanceId: string,
-    @CurrentUserId() userId: string | null,
+    @CurrentUserId() userId: string,
   ) {
     await Promise.resolve();
-    if (!userId) throw new UnauthenticatedError('Unauthorized');
     return this.toolInstanceService.delete(instanceId, userId);
   }
 
   @Query(() => [ToolInstanceMember])
+  @UseGuards(SignedInGuard, ToolInstanceAccessGuard)
   async toolInstanceMembers(
     @Args('instanceId') instanceId: string,
-    @CurrentUserId() userId: string | null,
+    @CurrentUserId() userId: string,
   ) {
     await Promise.resolve();
-    if (!userId) throw new UnauthenticatedError('Unauthorized');
     return this.toolInstanceService.listMembers(instanceId, userId);
   }
 
   @Mutation(() => Boolean)
+  @UseGuards(SignedInGuard)
   async leaveToolInstance(
     @Args('instanceId') instanceId: string,
-    @CurrentUserId() userId: string | null,
+    @CurrentUserId() userId: string,
   ) {
     await Promise.resolve();
-    if (!userId) throw new UnauthenticatedError('Unauthorized');
     return this.toolInstanceService.leave(instanceId, userId);
   }
 
   @Query(() => [MyInvite])
-  async myReceivedInvitations(@CurrentUserId() userId: string | null) {
-    if (!userId) throw new UnauthenticatedError('Unauthorized');
+  @UseGuards(SignedInGuard)
+  async myReceivedInvitations(@CurrentUserId() userId: string) {
 
     const email = await this.users.getEmailById(userId);
     if (!email) throw new NotFoundError('User email');
@@ -321,8 +313,8 @@ export class ToolInstanceResolver {
   }
 
   @Query(() => [SentInvite])
-  async myPendingInvites(@CurrentUserId() userId: string | null) {
-    if (!userId) throw new UnauthenticatedError('Unauthorized');
+  @UseGuards(SignedInGuard)
+  async myPendingInvites(@CurrentUserId() userId: string) {
 
     const invites = await this.invites.listSentPendingInvites(userId);
 
@@ -343,11 +335,11 @@ export class ToolInstanceResolver {
   }
 
   @Mutation(() => Boolean)
+  @UseGuards(SignedInGuard)
   async declineInvite(
     @Args('inviteId') inviteId: string,
-    @CurrentUserId() userId: string | null,
+    @CurrentUserId() userId: string,
   ) {
-    if (!userId) throw new UnauthenticatedError('Unauthorized');
 
     const email = await this.users.getEmailById(userId);
     if (!email) throw new NotFoundError('User email');

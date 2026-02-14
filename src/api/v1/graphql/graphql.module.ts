@@ -12,6 +12,10 @@ import { AuthModule } from 'src/auth/auth.module';
 import { InvitesService } from 'src/invites/invites.service';
 import { UsersModule } from 'src/users/users.module';
 
+import { SignedInGuard } from 'src/common/guards/signed-in.guard';
+import { ToolInstanceAccessGuard } from 'src/common/guards/tool-instance-access.guard';
+import { UserOwnershipGuard } from 'src/common/guards/user-ownership.guard';
+
 @Module({
   imports: [
     ToolModule,
@@ -51,6 +55,12 @@ import { UsersModule } from 'src/users/users.module';
       }),
     }),
   ],
-  providers: [ToolInstanceResolver, InvitesService],
+  providers: [
+    ToolInstanceResolver,
+    InvitesService,
+    SignedInGuard,
+    ToolInstanceAccessGuard,
+    UserOwnershipGuard,
+  ],
 })
 export class AppGraphqlModule {}

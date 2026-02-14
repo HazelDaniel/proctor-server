@@ -4,6 +4,7 @@ import type { ToolInstanceService } from '../../src/toolinstance/toolinstance.se
 import type { InvitesService } from '../../src/invites/invites.service.js';
 import type { UsersService } from '../../src/users/users.service.js';
 import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { randomUUID } from 'crypto';
 
 describe('InvitesService (integration)', () => {
   let container: StartedPostgreSqlContainer;
@@ -38,11 +39,14 @@ describe('InvitesService (integration)', () => {
     await container.stop();
   });
 
-  test('create invite -> shows in myPendingInvites -> accept adds membership', async () => {
+  test('create invite -> shows in myReceivedInvitations -> accept adds membership', async () => {
     const { db } = await import('src/db/db.provider.js');
     const { users } = await import('src/db/drivers/drizzle/schema.js');
 
-    const ownerId = 'owner-1';
+    const ownerId = randomUUID();
+    // create a user row to represent owner
+    await db.insert(users).values({ id: ownerId, email: 'owner@example.com' });
+
     const inst = await toolSvc.create('schema-design', ownerId);
 
     // Create invite for email
@@ -58,7 +62,7 @@ describe('InvitesService (integration)', () => {
       invitedEmail,
     );
 
-    const pending = await inviteSvc.myPendingInvites(invitedEmail);
+    const pending = await inviteSvc.myReceivedInvitations(invitedEmail);
     expect(pending.length).toBeGreaterThan(0);
 
     const email = await userSvc.getEmailById(inviteeId);
@@ -70,7 +74,13 @@ describe('InvitesService (integration)', () => {
   });
 
   test('decline hides invite from pending', async () => {
-    const ownerId = 'owner-2';
+    const { db } = await import('src/db/db.provider.js');
+    const { users } = await import('src/db/drivers/drizzle/schema.js');
+
+    const ownerId = randomUUID();
+    const ownerEmail = 'owner2@example.com';
+    await db.insert(users).values({ id: ownerId, email: ownerEmail });
+
     const inst = await toolSvc.create('schema-design', ownerId);
 
     const invitedEmail = 'decline@example.com';
@@ -80,13 +90,13 @@ describe('InvitesService (integration)', () => {
       invitedEmail,
     );
 
-    const pending1 = await inviteSvc.myPendingInvites(invitedEmail);
+    const pending1 = await inviteSvc.myReceivedInvitations(invitedEmail);
     const inv = pending1[0];
     expect(inv).toBeTruthy();
 
     await inviteSvc.declineInvite(inv.id, invitedEmail);
 
-    const pending2 = await inviteSvc.myPendingInvites(invitedEmail);
+    const pending2 = await inviteSvc.myReceivedInvitations(invitedEmail);
     expect(pending2.find((x: { id: string }) => x.id === inv.id)).toBeFalsy();
 
     // token should no longer be usable

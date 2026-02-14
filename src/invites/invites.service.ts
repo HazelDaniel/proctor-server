@@ -4,6 +4,7 @@ import {
   toolInstanceInvites,
   toolInstanceMembers,
   toolInstances,
+  users,
 } from 'src/db/drivers/drizzle/schema';
 import { normalizeEmail } from '../users/users.service';
 import {
@@ -24,7 +25,6 @@ export class InvitesService {
   async createInvite(
     instanceId: string,
     ownerUserId: string,
-    ownerEmail: string,
     inviteeEmail: string,
   ) {
     const inst = await this.db
@@ -34,6 +34,15 @@ export class InvitesService {
       .limit(1);
     if (!inst[0]) throw new NotFoundError('Tool instance');
     if (inst[0].ownerUserId !== ownerUserId) throw new PermissionDeniedError('Forbidden');
+    
+    // Fetch owner email
+    const ownerRows = await this.db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, ownerUserId))
+      .limit(1);
+    if (!ownerRows[0]) throw new NotFoundError('User email');
+    const ownerEmail = ownerRows[0].email;
 
     const email = normalizeEmail(inviteeEmail);
     const token = newToken();

@@ -55,7 +55,7 @@ describe('Invitations Flow (integration)', () => {
     await inviteSvc.createInvite(inst.id, ownerId, inviteeEmail);
 
     // 1. Check Invitee's received invitations
-    const received = await inviteSvc.myPendingInvites(inviteeEmail);
+    const received = await inviteSvc.myReceivedInvitations(inviteeEmail);
     expect(received.length).toBe(1);
     expect(received[0].instanceId).toBe(inst.id);
     expect(received[0].createdByUserId).toBe(ownerId);
@@ -63,7 +63,7 @@ describe('Invitations Flow (integration)', () => {
     // 2. Check Owner's pending sent invitations
     const pendingSent = await inviteSvc.listSentPendingInvites(ownerId);
     expect(pendingSent.length).toBe(1);
-    expect(pendingSent[0].invitedEmail).toBe(inviteeEmail);
+    expect(pendingSent[0].inviteeEmail).toBe(inviteeEmail);
     expect(pendingSent[0].status).toBe('pending');
   });
 });
