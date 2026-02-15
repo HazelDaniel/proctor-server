@@ -91,7 +91,9 @@ export const users = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
+    lastLogoutAt: timestamp('last_logout_at', { withTimezone: true }),
   },
+
   (t) => ({
     emailUq: uniqueIndex('users_email_uq').on(t.email),
     usernameUq: uniqueIndex('users_username_uq').on(t.username),

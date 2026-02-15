@@ -106,11 +106,24 @@ export class AuthResolver {
 
   @Mutation(() => Boolean)
   async logout(@Context() ctx: GraphQLContext): Promise<boolean> {
+    if (ctx.userId) {
+      await this.usersService.updateLastLogout(ctx.userId);
+    }
     if (ctx.res) {
       ctx.res.clearCookie('access_token');
       ctx.res.clearCookie('refresh_token');
     }
     return true;
   }
+
+  @Mutation(() => Boolean)
+  async deleteAccount(@Context() ctx: GraphQLContext): Promise<boolean> {
+    if (!ctx.userId) throw new UnauthenticatedError();
+    // In a real app, we would cascade delete or mark as deleted.
+    // For now, we'll just logout the user as a placeholder.
+    await this.logout(ctx);
+    return true;
+  }
 }
+
 

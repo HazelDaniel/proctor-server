@@ -31,7 +31,7 @@ import { UserOwnershipGuard } from 'src/common/guards/user-ownership.guard';
         // playground: false,
         introspection: true,
 
-        context: ({ req, res }: { req: Request; res: Response }): GraphQLContext => {
+        context: async ({ req, res }: { req: Request; res: Response }): Promise<GraphQLContext> => {
           // Try to get token from header or cookie
           const authHeader = String(req.headers['authorization'] ?? '');
           let token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
@@ -44,11 +44,14 @@ import { UserOwnershipGuard } from 'src/common/guards/user-ownership.guard';
 
           if (token) {
             try {
-              userId = authService.verifyToken(token).userId;
+              // Now async
+              const result = await authService.verifyToken(token);
+              userId = result.userId;
             } catch {
               userId = null;
             }
           }
+
 
           return {
             req,

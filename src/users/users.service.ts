@@ -68,6 +68,13 @@ export class UsersService {
       .where(eq(users.id, userId));
   }
 
+  async updateLastLogout(userId: string) {
+    await this.db
+      .update(users)
+      .set({ lastLogoutAt: new Date() })
+      .where(eq(users.id, userId));
+  }
+
   async deleteUnverifiedBefore(date: Date) {
     await this.db.delete(users).where(
       and(

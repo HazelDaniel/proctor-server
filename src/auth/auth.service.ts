@@ -21,12 +21,26 @@ export class AuthService {
     @Inject(DB_PROVIDER) private readonly db: DB,
   ) {}
 
-  verifyToken(token: string): JwtUser {
+  async verifyToken(token: string): Promise<JwtUser> {
     const payload = this.jwt.verify<AuthPayloadType>(token);
     const userId = String(payload?.sub ?? payload?.userId ?? '');
     if (!userId) throw new UnauthenticatedError('Token payload missing subject');
+
+    // Server-side invalidation check
+    const user = await this.usersService.getById(userId);
+    if (!user) throw new UnauthenticatedError('User not found');
+
+    if (user.lastLogoutAt && payload.iat) {
+      // payload.iat is in seconds, lastLogoutAt is a Date
+      const issuedAtMs = payload.iat * 1000;
+      if (issuedAtMs < user.lastLogoutAt.getTime()) {
+        throw new UnauthenticatedError('Token invalidated by logout');
+      }
+    }
+
     return { userId };
   }
+
 
   async requestLogin(email: string, username?: string) {
     const norm = normalizeEmail(email);
