@@ -7,7 +7,7 @@ import { CollaborationModule } from 'src/collaboration/collaboration.module';
 import { ToolinstanceModule } from 'src/toolinstance/toolinstance.module';
 import { GraphQLContext } from './types';
 import { AuthService } from 'src/auth/auth.service';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { AuthModule } from 'src/auth/auth.module';
 import { InvitesService } from 'src/invites/invites.service';
 import { UsersModule } from 'src/users/users.module';
@@ -31,11 +31,14 @@ import { UserOwnershipGuard } from 'src/common/guards/user-ownership.guard';
         // playground: false,
         introspection: true,
 
-        context: ({ req }: { req: Request }): GraphQLContext => {
+        context: ({ req, res }: { req: Request; res: Response }): GraphQLContext => {
+          // Try to get token from header or cookie
           const authHeader = String(req.headers['authorization'] ?? '');
-          const token = authHeader.startsWith('Bearer ')
-            ? authHeader.slice(7)
-            : '';
+          let token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+
+          if (!token && req.cookies && req.cookies['access_token']) {
+            token = req.cookies['access_token'];
+          }
 
           let userId: string | null = null;
 
@@ -49,9 +52,11 @@ import { UserOwnershipGuard } from 'src/common/guards/user-ownership.guard';
 
           return {
             req,
+            res,
             userId,
           };
         },
+
       }),
     }),
   ],

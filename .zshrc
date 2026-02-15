@@ -1,1 +1,1 @@
-DATABASE_URL=postgresql://toughware:hazel999@localhost/ecommerce_test
+DATABASE_URL=postgresql://toughware:hazel999@localhost/proctor_dev

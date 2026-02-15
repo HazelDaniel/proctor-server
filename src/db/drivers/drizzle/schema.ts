@@ -84,12 +84,17 @@ export const users = pgTable(
   {
     id: uuid('id').primaryKey(),
     email: text('email').notNull(),
+    username: text('username'),
+    emailVerified: bigint('email_verified', { mode: 'number' })
+      .notNull()
+      .default(0), // 0: false, 1: true
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (t) => ({
     emailUq: uniqueIndex('users_email_uq').on(t.email),
+    usernameUq: uniqueIndex('users_username_uq').on(t.username),
   }),
 );
 
@@ -149,6 +154,7 @@ export const authTokens = pgTable(
   {
     id: uuid('id').primaryKey(),
     email: text('email').notNull(),
+    username: text('username'),
     tokenHash: text('token_hash').notNull(),
     status: text('status').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -159,5 +165,7 @@ export const authTokens = pgTable(
   (t) => ({
     tokenHashUq: uniqueIndex('auth_tokens_token_hash_uq').on(t.tokenHash),
     emailIdx: index('auth_tokens_email_idx').on(t.email),
+    usernameIdx: index('auth_tokens_username_idx').on(t.username),
   }),
 );
+

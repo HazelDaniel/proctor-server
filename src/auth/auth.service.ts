@@ -28,7 +28,7 @@ export class AuthService {
     return { userId };
   }
 
-  async requestLogin(email: string) {
+  async requestLogin(email: string, username?: string) {
     const norm = normalizeEmail(email);
     const token = newToken();
     const tokenHash = sha256Hex(token);
@@ -37,12 +37,16 @@ export class AuthService {
     await this.db.insert(authTokens).values({
       id: crypto.randomUUID(),
       email: norm,
+      username,
       tokenHash,
       status: 'pending',
       expiresAt,
     });
 
     // NOTE: In production, we'd email this.
+    const verificationLink = `http://localhost:5173/auth/verify?token=${token}&email=${encodeURIComponent(norm)}`;
+    console.log(`[AUTH] Verification link for ${email}: ${verificationLink}`);
+    
     return token;
   }
 
@@ -80,18 +84,53 @@ export class AuthService {
       .where(eq(authTokens.id, authToken.id));
 
     // Find or create user
-    const user = await this.usersService.findOrCreate(norm);
+    const user = await this.usersService.findOrCreate(norm, authToken.username ?? undefined);
 
-    // Issue JWT
-    const jwt = this.issueToken(user.id);
+    // Verify email if it's the first time
+    if (!user.emailVerified) {
+      await this.usersService.verifyEmail(user.id);
+    }
 
-    return { token: jwt, user };
+    // Issue Tokens
+    const { accessToken, refreshToken } = this.issueTokens(user.id);
+
+    return { token: accessToken, refreshToken, user };
   }
 
-  issueToken(userId: string): string {
-    return this.jwt.sign(
+  issueTokens(userId: string) {
+    const accessToken = this.jwt.sign(
       { sub: userId, userId },
-      { expiresIn: '7d' } // Long-lived session
+      { expiresIn: '15m' }
     );
+    const refreshToken = this.jwt.sign(
+      { sub: userId, userId, isRefresh: true },
+      { expiresIn: '7d' }
+    );
+    return { accessToken, refreshToken };
+  }
+
+  async refreshToken(token: string) {
+    try {
+      const payload = this.jwt.verify<AuthPayloadType & { isRefresh?: boolean }>(token);
+      if (!payload.isRefresh) throw new UnauthenticatedError('Invalid refresh token');
+      
+      const userId = String(payload.sub ?? payload.userId ?? '');
+      if (!userId) throw new UnauthenticatedError('Token payload missing subject');
+
+      const user = await this.usersService.getById(userId);
+      if (!user) throw new UnauthenticatedError('User not found');
+
+      return this.issueTokens(userId);
+    } catch (err) {
+      throw new UnauthenticatedError('Refresh token expired or invalid');
+    }
+  }
+
+  async vacuumUnverified() {
+    // Implementation for removing unverified users
+    // This could be called by a cron or manually
+    const threshold = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours
+    await this.usersService.deleteUnverifiedBefore(threshold);
   }
 }
+

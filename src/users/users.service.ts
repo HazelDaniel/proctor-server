@@ -1,5 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { eq, and, lt } from 'drizzle-orm';
+
 import { users } from 'src/db/drivers/drizzle/schema';
 import { DB_PROVIDER } from 'src/db/db.module';
 import type { DB } from 'src/db/db.provider';
@@ -8,13 +9,18 @@ import type { DB } from 'src/db/db.provider';
 export class UsersService {
   constructor(@Inject(DB_PROVIDER) private readonly db: DB) {}
 
-  async getEmailById(userId: string): Promise<string | null> {
+  async getById(userId: string) {
     const rows = await this.db
       .select()
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
-    return rows[0]?.email ?? null;
+    return rows[0] ?? null;
+  }
+
+  async getEmailById(userId: string): Promise<string | null> {
+    const user = await this.getById(userId);
+    return user?.email ?? null;
   }
 
   async getByEmail(email: string) {
@@ -27,16 +33,52 @@ export class UsersService {
     return rows[0] ?? null;
   }
 
-  async findOrCreate(email: string) {
+  async getByUsername(username: string) {
+    const rows = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.username, username))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  async findOrCreate(email: string, username?: string) {
     const norm = normalizeEmail(email);
     const existing = await this.getByEmail(norm);
-    if (existing) return existing;
+    if (existing) {
+      if (username && !existing.username) {
+        await this.db
+          .update(users)
+          .set({ username })
+          .where(eq(users.id, existing.id));
+        return { ...existing, username };
+      }
+      return existing;
+    }
 
     const id = crypto.randomUUID();
-    await this.db.insert(users).values({ id, email: norm });
-    return { id, email: norm };
+    await this.db.insert(users).values({ id, email: norm, username });
+    return { id, email: norm, username, emailVerified: 0 };
+  }
+
+  async verifyEmail(userId: string) {
+    await this.db
+      .update(users)
+      .set({ emailVerified: 1 })
+      .where(eq(users.id, userId));
+  }
+
+  async deleteUnverifiedBefore(date: Date) {
+    await this.db.delete(users).where(
+      and(
+        eq(users.emailVerified, 0),
+        lt(users.createdAt, date)
+      )
+    );
   }
 }
+
+
 
 export function normalizeEmail(email: string) {
   return email.trim().toLowerCase();

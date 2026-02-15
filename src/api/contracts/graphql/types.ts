@@ -86,6 +86,17 @@ export class SentInvite {
 export class User {
   @Field(() => ID) id!: string;
   @Field() email!: string;
+  @Field({ nullable: true }) username?: string;
+  @Field(() => Int) emailVerified!: number;
+}
+
+@ObjectType()
+export class Profile {
+  @Field(() => ID) id!: string;
+  @Field() email!: string;
+  @Field({ nullable: true }) username?: string;
+  @Field(() => Int) emailVerified!: number;
+  @Field() createdAt!: string;
 }
 
 @ObjectType()
@@ -93,3 +104,4 @@ export class AuthResult {
   @Field() token!: string;
   @Field(() => User) user!: User;
 }
+

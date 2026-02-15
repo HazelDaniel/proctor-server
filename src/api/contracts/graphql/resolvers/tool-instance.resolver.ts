@@ -45,6 +45,18 @@ export class ToolInstanceResolver {
     return this.toolInstanceService.listForUser(userId, toolType);
   }
 
+  @Query(() => ToolInstance, { nullable: true })
+  @UseGuards(SignedInGuard, ToolInstanceAccessGuard)
+  async toolInstance(
+    @Args('instanceId') instanceId: string,
+    @CurrentUserId() userId: string,
+  ) {
+    const instance = await this.toolInstanceService.getById(instanceId);
+    if (!instance) throw new NotFoundError('Tool instance');
+    return instance;
+  }
+
+
   @Query(() => [ToolInstance])
   @UseGuards(SignedInGuard)
   async myArchivedToolInstances(
