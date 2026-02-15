@@ -1,4 +1,4 @@
-import { Field, ID, ObjectType } from '@nestjs/graphql';
+import { Field, ID, Int, ObjectType } from '@nestjs/graphql';
 
 @ObjectType()
 export class ToolInstance {
@@ -38,6 +38,7 @@ export class ToolInstanceInvite {
   @Field() expiresAt!: string;
   @Field({ nullable: true }) acceptedAt?: string;
   @Field({ nullable: true }) revokedAt?: string;
+  @Field(() => Int) memberCount!: number;
 }
 
 @ObjectType()
@@ -66,6 +67,7 @@ export class MyInvite {
   // Useful for UI
   @Field({ nullable: true }) toolType?: string;
   @Field() inviterEmail!: string;
+  @Field(() => Int) memberCount!: number;
 }
 
 @ObjectType()
@@ -77,6 +79,7 @@ export class SentInvite {
   @Field() createdAt!: string;
   @Field() expiresAt!: string;
   @Field({ nullable: true }) toolType?: string;
+  @Field(() => Int) memberCount!: number;
 }
 
 @ObjectType()

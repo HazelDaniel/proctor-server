@@ -1,6 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { and, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { and, inArray, isNotNull, isNull, count } from 'drizzle-orm';
 import { eq } from 'drizzle-orm';
 import {
   documents,
@@ -18,6 +18,15 @@ export class ToolInstanceService {
     private readonly toolRegistry: ToolRegistry,
     @Inject(DB_PROVIDER) private readonly db: DB,
   ) {}
+
+  async getMemberCount(instanceId: string): Promise<number> {
+    const rows = await this.db
+      .select({ count: count() })
+      .from(toolInstanceMembers)
+      .where(eq(toolInstanceMembers.instanceId, instanceId));
+
+    return (rows[0]?.count ?? 0) + 1; // +1 for the owner
+  }
 
   async list(toolType?: string) {
     if (toolType) {

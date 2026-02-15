@@ -80,6 +80,7 @@ export class ToolInstanceResolver {
     @CurrentUserId() userId: string,
   ) {
     const rows = await this.invites.listInvites(instanceId, userId);
+    const memberCount = await this.toolInstanceService.getMemberCount(instanceId);
     return rows.map((r) => ({
       id: r.id,
       instanceId: r.instanceId,
@@ -90,6 +91,7 @@ export class ToolInstanceResolver {
       expiresAt: String(r.expiresAt),
       acceptedAt: r.acceptedAt ? String(r.acceptedAt) : undefined,
       revokedAt: r.revokedAt ? String(r.revokedAt) : undefined,
+      memberCount,
     }));
   }
 
@@ -296,7 +298,7 @@ export class ToolInstanceResolver {
     const out: MyInvite[] = [];
     for (const inv of invites) {
       const inst = await this.toolInstanceService.getById(inv.instanceId);
-      // const inviterEmail = await this.users.getEmailById(inv.createdByUserId);
+      const memberCount = await this.toolInstanceService.getMemberCount(inv.instanceId);
 
       out.push({
         inviteId: inv.id,
@@ -307,6 +309,7 @@ export class ToolInstanceResolver {
         expiresAt: String(inv.expiresAt),
         toolType: inst?.toolType,
         inviterEmail: inv.inviterEmail,
+        memberCount,
       });
     }
     return out;
@@ -321,6 +324,7 @@ export class ToolInstanceResolver {
     const out: SentInvite[] = [];
     for (const inv of invites) {
       const inst = await this.toolInstanceService.getById(inv.instanceId);
+      const memberCount = await this.toolInstanceService.getMemberCount(inv.instanceId);
       out.push({
         id: inv.id,
         instanceId: inv.instanceId,
@@ -329,6 +333,7 @@ export class ToolInstanceResolver {
         createdAt: String(inv.createdAt),
         expiresAt: String(inv.expiresAt),
         toolType: inst?.toolType,
+        memberCount,
       });
     }
     return out;
