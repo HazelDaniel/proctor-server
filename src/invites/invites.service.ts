@@ -197,6 +197,55 @@ export class InvitesService {
     return true;
   }
 
+  async acceptInviteById(
+    inviteId: string,
+    currentUserId: string,
+    currentUserEmail: string,
+  ) {
+    const rows = await this.db
+      .select()
+      .from(toolInstanceInvites)
+      .where(eq(toolInstanceInvites.id, inviteId))
+      .limit(1);
+
+    if (!rows[0]) throw new NotFoundError('Invite');
+    const invite = rows[0];
+
+    if (invite.status !== 'pending')
+      throw new ValidationError('Invite is not pending');
+    if (invite.expiresAt.getTime() < Date.now()) {
+      await this.db
+        .update(toolInstanceInvites)
+        .set({ status: 'expired' })
+        .where(eq(toolInstanceInvites.id, invite.id));
+      throw new ValidationError('Invite expired');
+    }
+
+    const email = normalizeEmail(currentUserEmail);
+    if (email !== invite.inviteeEmail)
+      throw new PermissionDeniedError('Forbidden');
+
+    try {
+      await this.db.insert(toolInstanceMembers).values({
+        instanceId: invite.instanceId,
+        userId: currentUserId,
+      });
+    } catch {
+      // already member
+    }
+
+    await this.db
+      .update(toolInstanceInvites)
+      .set({
+        status: 'accepted',
+        acceptedAt: new Date(),
+        acceptedByUserId: currentUserId,
+      })
+      .where(eq(toolInstanceInvites.id, invite.id));
+
+    return true;
+  }
+
   async declineInvite(inviteId: string, userEmail: string) {
     const email = normalizeEmail(userEmail);
 

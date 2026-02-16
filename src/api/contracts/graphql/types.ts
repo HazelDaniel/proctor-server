@@ -7,8 +7,11 @@ export class ToolInstance {
   @Field(() => ID) docId!: string;
   @Field() createdAt!: string;
   @Field({ nullable: true }) archivedAt?: string;
-  @Field(() => Boolean) iOwn!: boolean;
+  @Field(() => ID) ownerId!: string;
+  @Field() name!: string;
+  @Field() lastModified!: string;
 }
+
 
 @ObjectType()
 export class ValidationError {
@@ -85,6 +88,7 @@ export class SentInvite {
 @ObjectType()
 export class User {
   @Field(() => ID) id!: string;
+  @Field(() => ID) userId!: string;
   @Field() email!: string;
   @Field({ nullable: true }) username?: string;
   @Field(() => Int) emailVerified!: number;
@@ -93,11 +97,13 @@ export class User {
 @ObjectType()
 export class Profile {
   @Field(() => ID) id!: string;
+  @Field(() => ID) userId!: string;
   @Field() email!: string;
   @Field({ nullable: true }) username?: string;
   @Field(() => Int) emailVerified!: number;
   @Field() createdAt!: string;
 }
+
 
 @ObjectType()
 export class AuthResult {

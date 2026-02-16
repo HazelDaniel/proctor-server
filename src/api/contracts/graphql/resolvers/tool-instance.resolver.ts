@@ -1,4 +1,4 @@
-import { Resolver, Query, Mutation, Args, ResolveField, Parent } from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args, Parent } from '@nestjs/graphql';
 import { ToolRegistry } from 'src/tools/registry';
 import { DocumentRegistry } from 'src/document-registry/document-registry.service';
 import { ToolInstanceService } from 'src/toolinstance/toolinstance.service';
@@ -42,7 +42,13 @@ export class ToolInstanceResolver {
     @Args('toolType', { nullable: true }) toolType: string,
     @CurrentUserId() userId: string,
   ) {
-    return this.toolInstanceService.listForUser(userId, toolType);
+    const instances = await this.toolInstanceService.listForUser(userId, toolType);
+    return instances.map((inst) => ({
+      ...inst,
+      ownerId: inst.ownerUserId,
+      name: inst.name,
+      lastModified: String(inst.lastModified),
+    }));
   }
 
   @Query(() => ToolInstance, { nullable: true })
@@ -53,7 +59,12 @@ export class ToolInstanceResolver {
   ) {
     const instance = await this.toolInstanceService.getById(instanceId);
     if (!instance) throw new NotFoundError('Tool instance');
-    return instance;
+    return {
+      ...instance,
+      ownerId: instance.ownerUserId,
+      name: instance.name,
+      lastModified: String(instance.lastModified),
+    };
   }
 
 
@@ -71,6 +82,9 @@ export class ToolInstanceResolver {
       ...inst,
       createdAt: String(inst.createdAt),
       archivedAt: inst.archivedAt ? String(inst.archivedAt) : undefined,
+      ownerId: inst.ownerUserId,
+      name: inst.name,
+      lastModified: String(inst.lastModified),
     }));
   }
 
@@ -129,6 +143,19 @@ export class ToolInstanceResolver {
     return this.invites.acceptInvite(token, userId, email);
   }
 
+  @Mutation(() => Boolean)
+  @UseGuards(SignedInGuard)
+  async acceptToolInstanceInviteById(
+    @Args('inviteId') inviteId: string,
+    @CurrentUserId() userId: string,
+  ) {
+    const email = await this.users.getEmailById(userId);
+    if (!email) throw new NotFoundError('User email');
+
+    return this.invites.acceptInviteById(inviteId, userId, email);
+  }
+
+
   @Mutation(() => CreateToolInstanceResult)
   @UseGuards(SignedInGuard)
   async createToolInstance(
@@ -143,6 +170,7 @@ export class ToolInstanceResolver {
       instance: {
         ...instance,
         createdAt: String(instance.createdAt),
+        ownerId: instance.ownerUserId,
       },
     };
   }
@@ -219,6 +247,7 @@ export class ToolInstanceResolver {
       toolType: updated.toolType,
       docId: updated.docId,
       createdAt: String(updated.createdAt),
+      ownerId: updated.ownerUserId,
     };
   }
 
@@ -266,6 +295,22 @@ export class ToolInstanceResolver {
   ) {
     await Promise.resolve();
     return this.toolInstanceService.unarchive(instanceId, userId);
+  }
+
+  @Mutation(() => ToolInstance)
+  @UseGuards(SignedInGuard)
+  async renameToolInstance(
+    @Args('instanceId') instanceId: string,
+    @Args('name') name: string,
+    @CurrentUserId() userId: string,
+  ) {
+    const updated = await this.toolInstanceService.rename(instanceId, userId, name);
+    return {
+      ...updated,
+      ownerId: updated.ownerUserId,
+      name: updated.name,
+      lastModified: String(updated.lastModified),
+    };
   }
 
   @Mutation(() => Boolean)
@@ -363,21 +408,6 @@ export class ToolInstanceResolver {
 
     return this.invites.declineInvite(inviteId, email);
   }
-
-  @ResolveField(() => Boolean)
-  iOwn(
-    @Parent() toolInstance: ToolInstance,
-    @CurrentUserId() userId: string | null,
-  ): boolean {
-    // If no user is logged in, they can't own anything
-    if (!userId) return false;
-    
-    // Check if the current user matches the ownerUserId of the instance
-    // Note: We need to make sure toolInstance actually has ownerUserId. 
-    // The ToolInstance TYPE doesn't have it, but the object returned from service (Drizzle result) DOES.
-    // We can cast to any or define an intersection type to access it safe-ishly.
-    
-    const inst = toolInstance as any; 
-    return inst.ownerUserId === userId;
-  }
 }
+
+

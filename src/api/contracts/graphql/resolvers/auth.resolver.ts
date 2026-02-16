@@ -27,9 +27,10 @@ export class AuthResolver {
   async verifyLogin(
     @Args('email') email: string,
     @Args('token') token: string,
+    @Args('rememberMe', { defaultValue: false }) rememberMe: boolean,
     @Context() ctx: GraphQLContext,
   ): Promise<AuthResult> {
-    const result = await this.authService.verifyLogin(email, token);
+    const result = await this.authService.verifyLogin(email, token, rememberMe);
 
     // Set refresh token in httpOnly cookie
     if (ctx.res) {
@@ -51,7 +52,10 @@ export class AuthResolver {
 
     return {
       token: result.token,
-      user: result.user as User,
+      user: {
+        ...result.user,
+        userId: result.user.id,
+      } as User,
     };
   }
 
@@ -81,7 +85,10 @@ export class AuthResolver {
     
     return {
       token: result.accessToken,
-      user: user as User,
+      user: {
+        ...user,
+        userId: user?.id,
+      } as User,
     };
   }
 
@@ -89,7 +96,11 @@ export class AuthResolver {
   async getCurrentUser(@Context() ctx: GraphQLContext): Promise<User | null> {
     if (!ctx.userId) return null;
     const user = await this.usersService.getById(ctx.userId);
-    return user as User;
+    if (!user) return null;
+    return {
+      ...user,
+      userId: user.id,
+    } as User;
   }
 
   @Query(() => Profile, { nullable: true })
@@ -100,9 +111,11 @@ export class AuthResolver {
     
     return {
       ...user,
+      userId: user.id,
       createdAt: user.createdAt.toISOString(),
     } as Profile;
   }
+
 
   @Mutation(() => Boolean)
   async logout(@Context() ctx: GraphQLContext): Promise<boolean> {

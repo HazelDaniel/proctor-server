@@ -64,7 +64,7 @@ export class AuthService {
     return token;
   }
 
-  async verifyLogin(email: string, token: string) {
+  async verifyLogin(email: string, token: string, rememberMe: boolean = false) {
     const norm = normalizeEmail(email);
     const tokenHash = sha256Hex(token);
 
@@ -106,18 +106,18 @@ export class AuthService {
     }
 
     // Issue Tokens
-    const { accessToken, refreshToken } = this.issueTokens(user.id);
+    const { accessToken, refreshToken } = this.issueTokens(user.id, rememberMe);
 
     return { token: accessToken, refreshToken, user };
   }
 
-  issueTokens(userId: string) {
+  issueTokens(userId: string, rememberMe: boolean = false) {
     const accessToken = this.jwt.sign(
       { sub: userId, userId },
       { expiresIn: '15m' }
     );
     const refreshToken = this.jwt.sign(
-      { sub: userId, userId, isRefresh: true },
+      { sub: userId, userId, isRefresh: true, rememberMe },
       { expiresIn: '7d' }
     );
     return { accessToken, refreshToken };
@@ -125,17 +125,21 @@ export class AuthService {
 
   async refreshToken(token: string) {
     try {
-      const payload = this.jwt.verify<AuthPayloadType & { isRefresh?: boolean }>(token);
+      const payload = this.jwt.verify<AuthPayloadType & { isRefresh?: boolean; rememberMe?: boolean }>(token);
       if (!payload.isRefresh) throw new UnauthenticatedError('Invalid refresh token');
       
+      // [todo]: only users who ticked the remember me checkbox during auth will their tokens refresh
+      if (!payload.rememberMe) throw new UnauthenticatedError('Refresh disabled (remember me not selected)');
+
       const userId = String(payload.sub ?? payload.userId ?? '');
       if (!userId) throw new UnauthenticatedError('Token payload missing subject');
 
       const user = await this.usersService.getById(userId);
       if (!user) throw new UnauthenticatedError('User not found');
 
-      return this.issueTokens(userId);
-    } catch (err) {
+      return this.issueTokens(userId, true); // Keep rememberMe as true
+    } catch (err: any) {
+      if (err instanceof UnauthenticatedError) throw err;
       throw new UnauthenticatedError('Refresh token expired or invalid');
     }
   }
@@ -147,4 +151,3 @@ export class AuthService {
     await this.usersService.deleteUnverifiedBefore(threshold);
   }
 }
-

@@ -73,11 +73,16 @@ export const toolInstances = pgTable('tool_instances', {
   toolType: text('tool_type').notNull(),
   docId: uuid('doc_id').notNull(),
   ownerUserId: text('owner_user_id').notNull(),
+  name: text('name').notNull().default('untitled'),
   createdAt: timestamp('created_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  lastModified: timestamp('last_modified', { withTimezone: true })
     .defaultNow()
     .notNull(),
   archivedAt: timestamp('archived_at', { withTimezone: true }),
 });
+
 
 export const users = pgTable(
   'users',

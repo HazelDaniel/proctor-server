@@ -265,6 +265,20 @@ export class ToolInstanceService {
     return { ...inst, ownerUserId: newOwnerUserId };
   }
 
+  async rename(instanceId: string, userId: string, newName: string) {
+    const inst = await this.getById(instanceId);
+    if (!inst) throw new NotFoundError('Tool instance');
+    if (inst.ownerUserId !== userId) throw new PermissionDeniedError('Forbidden');
+
+    const [updated] = await this.db
+      .update(toolInstances)
+      .set({ name: newName, lastModified: new Date() })
+      .where(eq(toolInstances.id, instanceId))
+      .returning();
+
+    return updated;
+  }
+
   async addMember(instanceId: string, userId: string): Promise<boolean> {
     // idempotent insert: try/catch on unique constraint
     try {
@@ -315,7 +329,7 @@ export class ToolInstanceService {
 
     await this.db
       .update(toolInstances)
-      .set({ archivedAt: new Date() })
+      .set({ archivedAt: new Date(), lastModified: new Date() })
       .where(eq(toolInstances.id, instanceId));
 
     return true;
@@ -328,7 +342,7 @@ export class ToolInstanceService {
 
     await this.db
       .update(toolInstances)
-      .set({ archivedAt: null })
+      .set({ archivedAt: null, lastModified: new Date() })
       .where(eq(toolInstances.id, instanceId));
 
     return true;

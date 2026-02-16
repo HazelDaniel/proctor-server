@@ -73,6 +73,59 @@ describe('Authentication Flow: Magic Link', () => {
     expect(verifyRes2.user.id).toBe(verifyRes.user.id); // Same user ID
   });
 
+  test('should support session refresh when rememberMe is true', async () => {
+    // 1. Request login
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+    await authResolver.requestLogin(testEmail);
+    const logCall = consoleSpy.mock.calls.find(call => call[0].includes('Verification link for'));
+    const token = new URL(logCall[0].split(': ')[1]).searchParams.get('token');
+    consoleSpy.mockRestore();
+
+    // 2. Verify login with rememberMe: true
+    const mockCtx = { res: { cookie: jest.fn() } };
+    const verifyRes = await authResolver.verifyLogin(testEmail, token!, true, mockCtx);
+    
+    // Check if refresh_token cookie was set
+    const refreshTokenCall = mockCtx.res.cookie.mock.calls.find(call => call[0] === 'refresh_token');
+    expect(refreshTokenCall).toBeDefined();
+    const refreshToken = refreshTokenCall[1];
+
+    // 3. Attempt to refresh token
+    const refreshCtx = { 
+      req: { cookies: { refresh_token: refreshToken } },
+      res: { cookie: jest.fn() },
+      userId: verifyRes.user.userId
+    };
+    const refreshRes = await authResolver.refreshToken(refreshCtx);
+    expect(refreshRes.token).toBeDefined();
+    expect(refreshRes.user.userId).toBe(verifyRes.user.userId);
+  });
+
+  test('should reject session refresh when rememberMe is false', async () => {
+    // 1. Request login
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+    await authResolver.requestLogin(testEmail);
+    const logCall = consoleSpy.mock.calls.find(call => call[0].includes('Verification link for'));
+    const token = new URL(logCall[0].split(': ')[1]).searchParams.get('token');
+    consoleSpy.mockRestore();
+
+    // 2. Verify login with rememberMe: false (default)
+    const mockCtx = { res: { cookie: jest.fn() } };
+    const verifyRes = await authResolver.verifyLogin(testEmail, token!, false, mockCtx);
+    
+    const refreshTokenCall = mockCtx.res.cookie.mock.calls.find(call => call[0] === 'refresh_token');
+    const refreshToken = refreshTokenCall[1];
+
+    // 3. Attempt to refresh token should fail
+    const refreshCtx = { 
+      req: { cookies: { refresh_token: refreshToken } },
+      res: { cookie: jest.fn() },
+      userId: verifyRes.user.userId
+    };
+    await expect(authResolver.refreshToken(refreshCtx))
+      .rejects.toThrow('Refresh disabled (remember me not selected)');
+  });
+
   test('should reject invalid or expired tokens', async () => {
     await expect(authResolver.verifyLogin(testEmail, 'invalid-token'))
       .rejects.toThrow('Invalid or expired login token');
