@@ -92,6 +92,7 @@ export class User {
   @Field() email!: string;
   @Field({ nullable: true }) username?: string;
   @Field(() => Int) emailVerified!: number;
+  @Field() avatarUrl!: string;
 }
 
 @ObjectType()
@@ -101,6 +102,7 @@ export class Profile {
   @Field() email!: string;
   @Field({ nullable: true }) username?: string;
   @Field(() => Int) emailVerified!: number;
+  @Field() avatarUrl!: string;
   @Field() createdAt!: string;
 }
 

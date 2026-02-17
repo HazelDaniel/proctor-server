@@ -97,6 +97,7 @@ export const users = pgTable(
       .defaultNow()
       .notNull(),
     lastLogoutAt: timestamp('last_logout_at', { withTimezone: true }),
+    avatarSeed: text('avatar_seed'),
   },
 
   (t) => ({

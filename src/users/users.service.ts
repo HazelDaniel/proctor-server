@@ -1,5 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { eq, and, lt } from 'drizzle-orm';
+import { AvatarService } from './avatar.service';
 
 import { users } from 'src/db/drivers/drizzle/schema';
 import { DB_PROVIDER } from 'src/db/db.module';
@@ -7,7 +8,10 @@ import type { DB } from 'src/db/db.provider';
 
 @Injectable()
 export class UsersService {
-  constructor(@Inject(DB_PROVIDER) private readonly db: DB) {}
+  constructor(
+    @Inject(DB_PROVIDER) private readonly db: DB,
+    private readonly avatarService: AvatarService,
+  ) {}
 
   async getById(userId: string) {
     const rows = await this.db
@@ -57,8 +61,9 @@ export class UsersService {
     }
 
     const id = crypto.randomUUID();
-    await this.db.insert(users).values({ id, email: norm, username });
-    return { id, email: norm, username, emailVerified: 0 };
+    const avatarSeed = this.avatarService.generateSeed();
+    await this.db.insert(users).values({ id, email: norm, username, avatarSeed });
+    return { id, email: norm, username, emailVerified: 0, avatarSeed };
   }
 
   async verifyEmail(userId: string) {

@@ -1,5 +1,6 @@
 import { Args, Mutation, Query, Resolver, Context } from '@nestjs/graphql';
 import { AuthService } from '../../../../auth/auth.service';
+import { AvatarService } from '../../../../users/avatar.service';
 import { AuthResult, User, Profile } from '../types';
 import type { GraphQLContext } from '../../../v1/graphql/types';
 
@@ -12,6 +13,7 @@ export class AuthResolver {
   constructor(
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
+    private readonly avatarService: AvatarService,
   ) {}
 
   @Mutation(() => Boolean)
@@ -55,6 +57,7 @@ export class AuthResolver {
       user: {
         ...result.user,
         userId: result.user.id,
+        avatarUrl: this.avatarService.getAvatarUrl(result.user.avatarSeed),
       } as User,
     };
   }
@@ -88,6 +91,7 @@ export class AuthResolver {
       user: {
         ...user,
         userId: user?.id,
+        avatarUrl: this.avatarService.getAvatarUrl(user?.avatarSeed),
       } as User,
     };
   }
@@ -100,6 +104,7 @@ export class AuthResolver {
     return {
       ...user,
       userId: user.id,
+      avatarUrl: this.avatarService.getAvatarUrl(user?.avatarSeed),
     } as User;
   }
 
@@ -112,6 +117,7 @@ export class AuthResolver {
     return {
       ...user,
       userId: user.id,
+      avatarUrl: this.avatarService.getAvatarUrl(user?.avatarSeed),
       createdAt: user.createdAt.toISOString(),
     } as Profile;
   }
