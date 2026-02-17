@@ -11,13 +11,13 @@
 import { Module } from '@nestjs/common';
 import { DocumentRegistry } from 'src/document-registry/document-registry.service';
 import { ToolPersistenceService } from 'src/toolpersistence/toolpersistence.service';
-import { YjsGateway } from 'src/tools/yjs-gateway';
+import { YjsSocketIoGateway } from './yjs-socketio-gateway';
 import { ToolModule } from 'src/tools/tools.module';
 import { ToolinstanceModule } from 'src/toolinstance/toolinstance.module';
 
 @Module({
   imports: [ToolModule, ToolinstanceModule],
-  providers: [ToolPersistenceService, DocumentRegistry, YjsGateway],
+  providers: [ToolPersistenceService, DocumentRegistry, YjsSocketIoGateway],
   exports: [DocumentRegistry, ToolModule, ToolinstanceModule],
 })
 export class CollaborationModule {}
