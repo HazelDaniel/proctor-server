@@ -14,9 +14,10 @@ import { ToolPersistenceService } from 'src/toolpersistence/toolpersistence.serv
 import { YjsSocketIoGateway } from './yjs-socketio-gateway';
 import { ToolModule } from 'src/tools/tools.module';
 import { ToolinstanceModule } from 'src/toolinstance/toolinstance.module';
+import { UsersModule } from 'src/users/users.module';
 
 @Module({
-  imports: [ToolModule, ToolinstanceModule],
+  imports: [ToolModule, ToolinstanceModule, UsersModule],
   providers: [ToolPersistenceService, DocumentRegistry, YjsSocketIoGateway],
   exports: [DocumentRegistry, ToolModule, ToolinstanceModule],
 })

@@ -19,6 +19,8 @@ import { ToolRegistry } from 'src/tools/registry';
 import { ToolInstanceService } from 'src/toolinstance/toolinstance.service';
 import { loadYjsProtocols } from 'src/import-resolution/yjs';
 import { SocketData } from './socket.types';
+import { UsersService } from 'src/users/users.service';
+import { AvatarService } from 'src/users/avatar.service';
 
 let awarenessProtocol: typeof AwarenessNS;
 
@@ -60,6 +62,8 @@ export class YjsSocketIoGateway
     private readonly docs: DocumentRegistry,
     private readonly tools: ToolRegistry,
     private readonly instances: ToolInstanceService,
+    private readonly usersService: UsersService,
+    private readonly avatarService: AvatarService,
   ) {}
 
   // ---- Feature 2: awareness batching state ----
@@ -92,6 +96,28 @@ export class YjsSocketIoGateway
     }, this.AWARENESS_FLUSH_MS);
 
     this.awarenessTimers.set(docId, t);
+  }
+
+  private async broadcastViewers(docId: string) {
+    const sockets = await this.server.in(ROOM(docId)).fetchSockets();
+    const seenUserIds = new Set<string>();
+    const viewers: { userId: string; avatarUrl: string | null }[] = [];
+
+    for (const s of sockets) {
+      const uid = s.data.userId;
+      if (!uid || seenUserIds.has(uid)) continue;
+      seenUserIds.add(uid);
+
+      const user = await this.usersService.getById(uid);
+      viewers.push({
+        userId: uid,
+        avatarUrl: user
+          ? this.avatarService.getAvatarUrl(user.avatarSeed)
+          : null,
+      });
+    }
+
+    this.server.to(ROOM(docId)).emit('presence:viewers', { viewers });
   }
 
   async handleConnection(client: ClientSocket) {
@@ -209,6 +235,9 @@ export class YjsSocketIoGateway
     }
 
     client.emit('yjs:ready', { docId, toolType });
+
+    // Broadcast updated viewer list to all clients in the room
+    await this.broadcastViewers(docId);
   }
 
   async handleDisconnect(client: ClientSocket) {
@@ -244,6 +273,9 @@ export class YjsSocketIoGateway
       if (t) clearTimeout(t);
       this.awarenessTimers.delete(docId);
       this.latestAwarenessPayload.delete(docId);
+    } else {
+      // Room still has viewers — broadcast updated viewer list
+      await this.broadcastViewers(docId);
     }
   }
 
