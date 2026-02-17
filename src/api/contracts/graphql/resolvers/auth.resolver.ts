@@ -122,6 +122,15 @@ export class AuthResolver {
     } as Profile;
   }
 
+  @Query(() => String, { nullable: true })
+  async fetchUserAvatarUrl(
+    @Args('userId') userId: string,
+  ): Promise<string | null> {
+    const user = await this.usersService.getById(userId);
+    if (!user) return null;
+    return this.avatarService.getAvatarUrl(user.avatarSeed);
+  }
+
 
   @Mutation(() => Boolean)
   async logout(@Context() ctx: GraphQLContext): Promise<boolean> {

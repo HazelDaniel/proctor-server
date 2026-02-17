@@ -44,6 +44,14 @@ export class AuthService {
 
   async requestLogin(email: string, username?: string) {
     const norm = normalizeEmail(email);
+
+    // Sign-in mode (no username): user must already exist
+    if (!username) {
+      const existing = await this.usersService.getByEmail(norm);
+      if (!existing) {
+        throw new ValidationError('No account found with this email. Please sign up first.');
+      }
+    }
     const token = newToken();
     const tokenHash = sha256Hex(token);
     const expiresAt = new Date(Date.now() + this.AUTH_TOKEN_TTL_MS);
