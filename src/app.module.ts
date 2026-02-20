@@ -37,7 +37,6 @@ const envSchema = z.object({
   controllers: [AppController],
   providers: [
     AppService, 
-    ToolPersistenceService,
     {
       provide: APP_FILTER,
       useClass: GlobalExceptionFilter,

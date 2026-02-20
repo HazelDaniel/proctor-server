@@ -64,6 +64,14 @@ export class DocumentRegistry implements OnModuleInit, OnModuleDestroy {
     entry.lastAccessed = Date.now();
   }
 
+  forget(docId: string) {
+    const entry = this.docs.get(docId);
+    if (!entry) return;
+
+    entry.destroy();
+    this.docs.delete(docId);
+  }
+
   private shouldSnapshot(entry: ActiveDocument): boolean {
     const tool = this.toolRegistry.get(entry.toolType);
     const policy = tool.snapshotPolicy;
@@ -133,9 +141,8 @@ export class DocumentRegistry implements OnModuleInit, OnModuleDestroy {
           entry.pendingUpdates--;
         })
         .catch((e) => {
-          void e;
+          console.error(`[DocumentRegistry] Error in update chain for ${docId}:`, e);
           entry.pendingUpdates = Math.max(0, entry.pendingUpdates - 1);
-          // TODO: log this. Do not throw in event loop.
         });
     });
 
@@ -149,19 +156,23 @@ export class DocumentRegistry implements OnModuleInit, OnModuleDestroy {
       if (entry.refCount > 0) continue;
       if (now - entry.lastAccessed < this.EVICTION_TIMEOUT_MS) continue;
 
-      //  flush queued persistence writes (strict ordering guarantee)
-      await entry.chain;
+      try {
+        //  flush queued persistence writes (strict ordering guarantee)
+        await entry.chain;
 
-      //  final snapshot if dirty
-      if (entry.seq > entry.lastSnapshotSeq) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-        await this.persistence.createSnapshot(docId, entry.seq, entry.doc);
-        entry.lastSnapshotSeq = entry.seq;
-        entry.lastSnapshotTime = Date.now();
+        //  final snapshot if dirty
+        if (entry.seq > entry.lastSnapshotSeq) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+          await this.persistence.createSnapshot(docId, entry.seq, entry.doc);
+          entry.lastSnapshotSeq = entry.seq;
+          entry.lastSnapshotTime = Date.now();
+        }
+      } catch (e) {
+        console.error(`[DocumentRegistry] Failed to snapshot during eviction for ${docId}:`, e);
+      } finally {
+        entry.destroy();
+        this.docs.delete(docId);
       }
-
-      entry.destroy();
-      this.docs.delete(docId);
     }
   }
 }

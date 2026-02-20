@@ -15,10 +15,11 @@ import { YjsSocketIoGateway } from './yjs-socketio-gateway';
 import { ToolModule } from 'src/tools/tools.module';
 import { ToolinstanceModule } from 'src/toolinstance/toolinstance.module';
 import { UsersModule } from 'src/users/users.module';
+import { PersistenceModule } from 'src/persistence/persistence.module';
 
 @Module({
-  imports: [ToolModule, ToolinstanceModule, UsersModule],
-  providers: [ToolPersistenceService, DocumentRegistry, YjsSocketIoGateway],
-  exports: [DocumentRegistry, ToolModule, ToolinstanceModule],
+  imports: [ToolModule, ToolinstanceModule, UsersModule, PersistenceModule],
+  providers: [YjsSocketIoGateway],
+  exports: [PersistenceModule, ToolModule, ToolinstanceModule],
 })
 export class CollaborationModule {}

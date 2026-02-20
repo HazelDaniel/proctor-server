@@ -12,11 +12,14 @@ import { NotFoundError, PermissionDeniedError } from '../common/errors/domain-er
 import { DB_PROVIDER } from 'src/db/db.module';
 import type { DB } from 'src/db/db.provider';
 
+import { DocumentRegistry } from 'src/document-registry/document-registry.service';
+
 @Injectable()
 export class ToolInstanceService {
   constructor(
     private readonly toolRegistry: ToolRegistry,
     @Inject(DB_PROVIDER) private readonly db: DB,
+    private readonly documentRegistry: DocumentRegistry,
   ) {}
 
   async getMemberCount(instanceId: string): Promise<number> {
@@ -359,6 +362,9 @@ export class ToolInstanceService {
     // Also delete the document row so snapshots/updates cascade
     // (Assumes documentSnapshots/documentUpdates reference documents with ON DELETE CASCADE)
     await this.db.delete(documents).where(eq(documents.id, inst.docId));
+
+    // immediately forget from registry to prevent eviction race
+    this.documentRegistry.forget(inst.docId);
 
     return true;
   }
