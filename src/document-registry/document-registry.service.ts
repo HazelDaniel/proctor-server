@@ -31,14 +31,24 @@ export class DocumentRegistry implements OnModuleInit, OnModuleDestroy {
       this.evictionInterval = null;
     }
   }
-  
+  private readonly loadingDocs = new Map<string, Promise<ActiveDocument>>();
+
   // ... existing methods ...
 
   async acquire(docId: string, toolType: string): Promise<DocSession> {
     let entry: ActiveDocument | undefined = this.docs.get(docId);
     if (!entry) {
-      entry = await this.loadOrCreate(docId, toolType);
+      let loading = this.loadingDocs.get(docId);
+      if (!loading) {
+        loading = this.loadOrCreate(docId, toolType).catch(e => {
+          this.loadingDocs.delete(docId);
+          throw e;
+        });
+        this.loadingDocs.set(docId, loading);
+      }
+      entry = await loading;
       this.docs.set(docId, entry);
+      this.loadingDocs.delete(docId);
     }
     entry.refCount++;
     entry.lastAccessed = Date.now();

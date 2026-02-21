@@ -66,6 +66,9 @@ export class YjsSocketIoGateway
     private readonly avatarService: AvatarService,
   ) {}
 
+  // Tracks which Yjs clientID is associated with which Socket.id
+  private readonly socketIdToClientId = new Map<string, number>();
+
   // ---- Feature 2: awareness batching state ----
   private readonly AWARENESS_FLUSH_MS = 25;
   private awarenessTimers = new Map<string, NodeJS.Timeout | null>();
@@ -236,13 +239,26 @@ export class YjsSocketIoGateway
 
     client.emit('yjs:ready', { docId, toolType });
 
-    // Broadcast updated viewer list to all clients in the room
+    // Broadcast updated viewer list to all existing clients in the room,
+    // then send a dedicated copy directly to the new joiner so they receive
+    // the current viewer list regardless of listener-registration timing.
     await this.broadcastViewers(docId);
   }
 
   async handleDisconnect(client: ClientSocket) {
     const docId = String(client.data.docId ?? '');
     if (!docId) return;
+
+    // Remove the client's awareness state so others see them leave
+    const awareness = this.awarenessByDoc.get(docId);
+    if (awareness) {
+      const clientId = this.socketIdToClientId.get(client.id);
+      if (clientId !== undefined) {
+        awarenessProtocol.removeAwarenessStates(awareness, [clientId], this);
+        this.socketIdToClientId.delete(client.id);
+      }
+    }
+
     await Promise.resolve();
 
     this.docs.release(docId);
@@ -335,6 +351,17 @@ export class YjsSocketIoGateway
     if (msgType !== MSG_AWARENESS) return;
 
     const update = decoding.readVarUint8Array(dec);
+
+    // To track the clientID for this socket, we can decode the awareness update
+    // But since applyAwarenessUpdate does it for us, we can also extract it after
+    // Another way is to just read the updated clientIDs from the awareness instance
+    // Let's capture the clientId dynamically
+    const dec2 = decoding.createDecoder(update);
+    const len = decoding.readVarUint(dec2);
+    if (len > 0) {
+      const clientId = decoding.readVarUint(dec2);
+      this.socketIdToClientId.set(client.id, clientId);
+    }
 
     awarenessProtocol.applyAwarenessUpdate(awareness, update, client);
 
