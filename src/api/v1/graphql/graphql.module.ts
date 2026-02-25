@@ -11,6 +11,8 @@ import type { Request, Response } from 'express';
 import { AuthModule } from 'src/auth/auth.module';
 import { InvitesService } from 'src/invites/invites.service';
 import { UsersModule } from 'src/users/users.module';
+import { NotificationModule } from 'src/notifications/notification.module';
+import { ChatModule } from 'src/chat/chat.module';
 
 import { SignedInGuard } from 'src/common/guards/signed-in.guard';
 import { ToolInstanceAccessGuard } from 'src/common/guards/tool-instance-access.guard';
@@ -22,6 +24,8 @@ import { UserOwnershipGuard } from 'src/common/guards/user-ownership.guard';
     CollaborationModule,
     UsersModule,
     ToolinstanceModule,
+    NotificationModule,
+    ChatModule,
     GraphQLModule.forRootAsync<ApolloDriverConfig>({
       driver: ApolloDriver,
       inject: [AuthService],

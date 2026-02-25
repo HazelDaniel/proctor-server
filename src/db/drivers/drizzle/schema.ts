@@ -8,6 +8,8 @@ import {
   timestamp,
   primaryKey,
   customType,
+  boolean,
+  jsonb,
 } from 'drizzle-orm/pg-core';
 
 export const bytea = customType<{ data: Buffer }>({
@@ -177,3 +179,46 @@ export const authTokens = pgTable(
   }),
 );
 
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: uuid('id').primaryKey(),
+    userId: text('user_id').notNull(),
+    type: text('type').notNull(), // invite_received | invite_accepted | chat_message | project_archived | project_deleted
+    payload: jsonb('payload').notNull().default({}),
+    read: boolean('read').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    instanceId: uuid('instance_id').references(() => toolInstances.id, {
+      onDelete: 'cascade',
+    }),
+  },
+  (t) => ({
+    userIdx: index('notifications_user_idx').on(t.userId),
+    userReadIdx: index('notifications_user_read_idx').on(t.userId, t.read),
+    createdAtIdx: index('notifications_created_at_idx').on(t.createdAt),
+  }),
+);
+
+export const chatMessages = pgTable(
+  'chat_messages',
+  {
+    id: uuid('id').primaryKey(),
+    instanceId: uuid('instance_id')
+      .notNull()
+      .references(() => toolInstances.id, { onDelete: 'cascade' }),
+    senderId: text('sender_id').notNull(),
+    content: text('content').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => ({
+    instIdx: index('chat_messages_instance_idx').on(t.instanceId),
+    instCreatedAtIdx: index('chat_messages_instance_created_at_idx').on(
+      t.instanceId,
+      t.createdAt,
+    ),
+  }),
+);

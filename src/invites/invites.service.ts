@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { and, eq, desc } from 'drizzle-orm';
 import {
   toolInstanceInvites,
@@ -13,6 +13,7 @@ import {
   ValidationError,
 } from '../common/errors/domain-errors';
 import { sha256Hex, newToken } from '../common/crypto';
+import { NotificationService } from 'src/notifications/notification.service';
 import { DB_PROVIDER } from '../db/db.module';
 import type { DB } from '../db/db.provider';
 
@@ -20,7 +21,10 @@ import type { DB } from '../db/db.provider';
 export class InvitesService {
   private readonly INVITE_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 
-  constructor(@Inject(DB_PROVIDER) private readonly db: DB) {}
+  constructor(
+    @Inject(DB_PROVIDER) private readonly db: DB,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async createInvite(
     instanceId: string,
@@ -67,6 +71,33 @@ export class InvitesService {
 
     // NOTE: in production, we email the raw token link.
     // but this is okay atm
+    // Try to find the invitee user ID to send a notification
+    const inviteeRows = await this.db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+    
+    if (inviteeRows[0]) {
+      await this.notificationService.create(
+        inviteeRows[0].id,
+        'invite_received',
+        {
+          projectName: inst[0].name,
+          inviterEmail: ownerEmail,
+        },
+        instanceId,
+        email, // recipient email for fallback if they want email notifications
+      );
+    } else {
+      // If user doesn't exist yet, we could still send an email via some standalone email service,
+      // but NotificationService handles users. For now just passing email might work if we bypassed userId,
+      // but our schema requires userId. So we only notify if the user exists.
+      // We could use a dummy ID or just skip in-app notification and only send email.
+      // Wait, let's just use the EmailService directly or let NotificationService handle it if we modify it.
+      // The requirement says "log in to Proctor to accept", so it's fine.
+    }
+
     return { token, inviteeEmail: email, expiresAt: expiresAt.toISOString() };
   }
 
@@ -194,6 +225,20 @@ export class InvitesService {
       })
       .where(eq(toolInstanceInvites.id, invite.id));
 
+    // Notify owner that invite was accepted
+    const instRows = await this.db.select({ ownerUserId: toolInstances.ownerUserId, name: toolInstances.name }).from(toolInstances).where(eq(toolInstances.id, invite.instanceId)).limit(1);
+    if (instRows[0]) {
+      await this.notificationService.create(
+        instRows[0].ownerUserId,
+        'invite_accepted',
+        {
+          projectName: instRows[0].name,
+          accepterEmail: email,
+        },
+        invite.instanceId,
+      );
+    }
+
     return true;
   }
 
@@ -242,6 +287,20 @@ export class InvitesService {
         acceptedByUserId: currentUserId,
       })
       .where(eq(toolInstanceInvites.id, invite.id));
+
+    // Notify owner
+    const instRows = await this.db.select({ ownerUserId: toolInstances.ownerUserId, name: toolInstances.name }).from(toolInstances).where(eq(toolInstances.id, invite.instanceId)).limit(1);
+    if (instRows[0]) {
+      await this.notificationService.create(
+        instRows[0].ownerUserId,
+        'invite_accepted',
+        {
+          projectName: instRows[0].name,
+          accepterEmail: email,
+        },
+        invite.instanceId,
+      );
+    }
 
     return true;
   }

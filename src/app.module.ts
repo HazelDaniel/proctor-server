@@ -7,6 +7,8 @@ import { z } from 'zod';
 import { ToolPersistenceService } from './toolpersistence/toolpersistence.service';
 import { CollaborationModule } from './collaboration/collaboration.module';
 import { AuthModule } from './auth/auth.module';
+import { NotificationModule } from './notifications/notification.module';
+import { ChatModule } from './chat/chat.module';
 import { AppGraphqlModule } from './api/v1/graphql/graphql.module';
 import { APP_FILTER } from '@nestjs/core';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
@@ -33,6 +35,8 @@ const envSchema = z.object({
     CollaborationModule,
     AppGraphqlModule,
     AuthModule,
+    NotificationModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [

@@ -108,6 +108,26 @@ export class Profile {
 
 
 @ObjectType()
+export class Notification {
+  @Field(() => ID) id!: string;
+  @Field() userId!: string;
+  @Field() type!: string;
+  @Field() payload!: string; // Stored as JSON string
+  @Field(() => Boolean) read!: boolean;
+  @Field() createdAt!: string;
+  @Field({ nullable: true }) instanceId?: string;
+}
+
+@ObjectType()
+export class ChatMessage {
+  @Field(() => ID) id!: string;
+  @Field(() => String) instanceId!: string;
+  @Field(() => String) senderId!: string;
+  @Field(() => String) content!: string;
+  @Field(() => String) createdAt!: string;
+}
+
+@ObjectType()
 export class AuthResult {
   @Field() token!: string;
   @Field(() => User) user!: User;

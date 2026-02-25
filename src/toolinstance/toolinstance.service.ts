@@ -13,6 +13,7 @@ import { DB_PROVIDER } from 'src/db/db.module';
 import type { DB } from 'src/db/db.provider';
 
 import { DocumentRegistry } from 'src/document-registry/document-registry.service';
+import { NotificationService } from 'src/notifications/notification.service';
 
 @Injectable()
 export class ToolInstanceService {
@@ -20,6 +21,7 @@ export class ToolInstanceService {
     private readonly toolRegistry: ToolRegistry,
     @Inject(DB_PROVIDER) private readonly db: DB,
     private readonly documentRegistry: DocumentRegistry,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async getMemberCount(instanceId: string): Promise<number> {
@@ -335,6 +337,12 @@ export class ToolInstanceService {
       .set({ archivedAt: new Date(), lastModified: new Date() })
       .where(eq(toolInstances.id, instanceId));
 
+    // Notify members
+    const memberRows = await this.db.select({ userId: toolInstanceMembers.userId }).from(toolInstanceMembers).where(eq(toolInstanceMembers.instanceId, instanceId));
+    for (const mem of memberRows) {
+      await this.notificationService.create(mem.userId, 'project_archived', { projectName: inst.name }, instanceId);
+    }
+
     return true;
   }
 
@@ -356,6 +364,9 @@ export class ToolInstanceService {
     if (!inst) throw new NotFoundError('Tool instance');
     if (inst.ownerUserId !== ownerUserId) throw new PermissionDeniedError('Forbidden');
 
+    // Fetch members before deletion so we can notify them
+    const memberRows = await this.db.select({ userId: toolInstanceMembers.userId }).from(toolInstanceMembers).where(eq(toolInstanceMembers.instanceId, instanceId));
+
     // Hard delete tool instance (invites/members cascade via FK)
     await this.db.delete(toolInstances).where(eq(toolInstances.id, instanceId));
 
@@ -365,6 +376,11 @@ export class ToolInstanceService {
 
     // immediately forget from registry to prevent eviction race
     this.documentRegistry.forget(inst.docId);
+
+    // Notify members (use instanceId = undefined since the DB row is gone, and cascading would delete the notification if we attached it)
+    for (const mem of memberRows) {
+      await this.notificationService.create(mem.userId, 'project_deleted', { projectName: inst.name });
+    }
 
     return true;
   }
