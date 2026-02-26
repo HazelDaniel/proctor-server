@@ -1,16 +1,31 @@
-import { Resolver, Query, Mutation, Args, Context, Int } from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args, Context, Int, ResolveField, Parent } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { ChatService } from 'src/chat/chat.service';
-import { ChatMessage } from '../types';
+import { ChatMessage, User } from '../types';
 import { UnauthenticatedError, PermissionDeniedError } from 'src/common/errors/domain-errors';
 import { ToolInstanceService } from 'src/toolinstance/toolinstance.service';
+import { UsersService } from 'src/users/users.service';
+import { AvatarService } from 'src/users/avatar.service';
 
 @Resolver(() => ChatMessage)
 export class ChatResolver {
   constructor(
     private readonly chatService: ChatService,
     private readonly toolInstanceService: ToolInstanceService,
+    private readonly usersService: UsersService,
+    private readonly avatarService: AvatarService,
   ) {}
+
+  @ResolveField('sender', () => User, { nullable: true })
+  async getSender(@Parent() message: any) {
+    if (!message.senderId) return null;
+    const user = await this.usersService.getById(message.senderId);
+    if (!user) return null;
+    return {
+      ...user,
+      avatarUrl: this.avatarService.getAvatarUrl(user.avatarSeed),
+    };
+  }
 
   @Query(() => [ChatMessage])
   async chatMessages(

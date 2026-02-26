@@ -4,6 +4,8 @@ import { eq, desc, and } from 'drizzle-orm';
 import { chatMessages } from 'src/db/drivers/drizzle/schema';
 import { DB_PROVIDER } from 'src/db/db.module';
 import type { DB } from 'src/db/db.provider';
+import { UsersService } from 'src/users/users.service';
+import { AvatarService } from 'src/users/avatar.service';
 
 @Injectable()
 export class ChatService {
@@ -11,8 +13,12 @@ export class ChatService {
 
   // Will be injected by the module after gateway is available
   private gateway: { emitToInstance: (instanceId: string, message: any) => void } | null = null;
-
-  constructor(@Inject(DB_PROVIDER) private readonly db: DB) {}
+  
+  constructor(
+    @Inject(DB_PROVIDER) private readonly db: DB,
+    private readonly usersService: UsersService,
+    private readonly avatarService: AvatarService,
+  ) {}
 
   setGateway(gw: { emitToInstance: (instanceId: string, message: any) => void }) {
     this.gateway = gw;
@@ -43,9 +49,17 @@ export class ChatService {
 
     // Push via gateway
     if (this.gateway) {
+      const user = await this.usersService.getById(senderId);
+      const sender = user ? {
+        id: user.userId,
+        username: user.username,
+        avatarUrl: this.avatarService.getAvatarUrl(user.avatarSeed),
+      } : null;
+
       this.gateway.emitToInstance(instanceId, {
         ...msg,
         createdAt: msg.createdAt.toISOString(),
+        sender,
       });
     }
 

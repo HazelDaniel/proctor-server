@@ -127,6 +127,7 @@ export class ChatMessage {
   @Field(() => String) type!: string;
   @Field(() => String, { nullable: true }) metadata?: string; // JSON string
   @Field(() => String) createdAt!: string;
+  @Field(() => User, { nullable: true }) sender?: User;
 }
 
 @ObjectType()

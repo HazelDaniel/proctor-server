@@ -4,9 +4,10 @@ import { ChatGateway } from './chat.gateway';
 import { AuthModule } from 'src/auth/auth.module';
 import { ChatResolver } from 'src/api/contracts/graphql/resolvers/chat.resolver';
 import { ToolinstanceModule } from 'src/toolinstance/toolinstance.module';
+import { UsersModule } from 'src/users/users.module';
 
 @Module({
-  imports: [AuthModule, ToolinstanceModule],
+  imports: [AuthModule, ToolinstanceModule, UsersModule],
   providers: [
     ChatService,
     ChatGateway,
