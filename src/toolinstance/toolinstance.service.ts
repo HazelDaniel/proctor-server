@@ -147,12 +147,11 @@ export class ToolInstanceService {
       .select()
       .from(toolInstances)
       .where(
-        toolType
-          ? and(
-              inArray(toolInstances.id, memberIds),
-              eq(toolInstances.toolType, toolType),
-            )
-          : inArray(toolInstances.id, memberIds),
+        and(
+          inArray(toolInstances.id, memberIds),
+          toolType ? eq(toolInstances.toolType, toolType) : undefined,
+          includeArchived ? undefined : isNull(toolInstances.archivedAt),
+        ),
       );
 
     // combine unique
@@ -209,6 +208,9 @@ export class ToolInstanceService {
     if (!inst) return false;
 
     if (inst.ownerUserId === userId) return true;
+
+    // Archived instances are ONLY accessible to the owner
+    if (inst.archivedAt) return false;
 
     const mem = await this.db
       .select()
