@@ -28,6 +28,7 @@ export class ChatResolver {
 
     return items.map((m) => ({
       ...m,
+      metadata: m.metadata ? JSON.stringify(m.metadata) : null,
       createdAt: m.createdAt.toISOString(),
     }));
   }
@@ -47,6 +48,7 @@ export class ChatResolver {
 
     return {
       ...msg,
+      metadata: msg.metadata ? JSON.stringify(msg.metadata) : null,
       createdAt: msg.createdAt.toISOString(),
     };
   }

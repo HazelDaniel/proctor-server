@@ -91,7 +91,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('sendMessage')
   async handleSendMessage(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { content: string },
+    @MessageBody() data: { content: string; type?: string; metadata?: any },
   ) {
     const userId = (client as any).data?.userId;
     const instanceId = (client as any).data?.instanceId;
@@ -99,7 +99,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!userId || !instanceId || !data.content) return;
 
     // Persist and broadcast
-    await this.chatService.createMessage(instanceId, userId, data.content);
+    await this.chatService.createMessage(
+      instanceId,
+      userId,
+      data.content,
+      data.type,
+      data.metadata,
+    );
   }
 
   emitToInstance(instanceId: string, message: any) {

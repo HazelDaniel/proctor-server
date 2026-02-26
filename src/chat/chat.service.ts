@@ -18,17 +18,28 @@ export class ChatService {
     this.gateway = gw;
   }
 
-  async createMessage(instanceId: string, senderId: string, content: string) {
+  async createMessage(
+    instanceId: string,
+    senderId: string,
+    content: string,
+    type: string = 'normal',
+    metadata: any = {},
+  ) {
     const id = randomUUID();
     const now = new Date();
 
-    const [msg] = await this.db.insert(chatMessages).values({
-      id,
-      instanceId,
-      senderId,
-      content,
-      createdAt: now,
-    }).returning();
+    const [msg] = await this.db
+      .insert(chatMessages)
+      .values({
+        id,
+        instanceId,
+        senderId,
+        content,
+        type,
+        metadata,
+        createdAt: now,
+      })
+      .returning();
 
     // Push via gateway
     if (this.gateway) {

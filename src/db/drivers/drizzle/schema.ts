@@ -210,6 +210,8 @@ export const chatMessages = pgTable(
       .references(() => toolInstances.id, { onDelete: 'cascade' }),
     senderId: text('sender_id').notNull(),
     content: text('content').notNull(),
+    type: text('type').notNull().default('normal'), // normal | bubble
+    metadata: jsonb('metadata').default({}),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),

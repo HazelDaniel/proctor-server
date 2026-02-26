@@ -124,6 +124,8 @@ export class ChatMessage {
   @Field(() => String) instanceId!: string;
   @Field(() => String) senderId!: string;
   @Field(() => String) content!: string;
+  @Field(() => String) type!: string;
+  @Field(() => String, { nullable: true }) metadata?: string; // JSON string
   @Field(() => String) createdAt!: string;
 }
 
