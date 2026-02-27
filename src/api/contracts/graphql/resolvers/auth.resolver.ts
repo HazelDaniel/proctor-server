@@ -7,6 +7,7 @@ import type { GraphQLContext } from '../../../v1/graphql/types';
 
 import { UsersService } from '../../../../users/users.service';
 import { UnauthenticatedError } from '../../../../common/errors/domain-errors';
+import { Logger } from '@nestjs/common';
 
 @Resolver()
 export class AuthResolver {
@@ -15,6 +16,8 @@ export class AuthResolver {
     private readonly usersService: UsersService,
     private readonly avatarService: AvatarService,
   ) {}
+
+  private readonly logger = new Logger(AuthResolver.name);
 
   @Mutation(() => Boolean)
   async requestLogin(
@@ -48,7 +51,7 @@ export class AuthResolver {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: 15 * 60 * 1000, // 15 minutes
+        maxAge: 60 * 1000, // 1 minute for debugging
       });
     }
 
@@ -65,9 +68,11 @@ export class AuthResolver {
   @Mutation(() => AuthResult)
   async refreshToken(@Context() ctx: GraphQLContext): Promise<AuthResult> {
     const refreshToken = ctx.req.cookies?.['refresh_token'];
+    this.logger.log(`[AuthResolver] Refresh token received: ${refreshToken ? 'Yes' : 'No'}`);
     if (!refreshToken) throw new UnauthenticatedError('No refresh token provided');
 
     const result = await this.authService.refreshToken(refreshToken);
+    this.logger.log(`[AuthResolver] New tokens issued for user: ${result.userId}`);
 
     if (ctx.res) {
       ctx.res.cookie('refresh_token', result.refreshToken, {
@@ -80,11 +85,11 @@ export class AuthResolver {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: 15 * 60 * 1000,
+        maxAge: 60 * 1000, // 1 minute for debugging
       });
     }
 
-    const user = await this.usersService.getById(ctx.userId!);
+    const user = await this.usersService.getById(result.userId);
     
     return {
       token: result.accessToken,
@@ -130,7 +135,6 @@ export class AuthResolver {
     if (!user) return null;
     return this.avatarService.getAvatarUrl(user.avatarSeed);
   }
-
 
   @Mutation(() => Boolean)
   async logout(@Context() ctx: GraphQLContext): Promise<boolean> {

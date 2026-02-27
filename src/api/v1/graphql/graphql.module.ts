@@ -51,9 +51,13 @@ import { UserOwnershipGuard } from 'src/common/guards/user-ownership.guard';
               // Now async
               const result = await authService.verifyToken(token);
               userId = result.userId;
-            } catch {
+              console.log(`[GraphQL Context] Token verified for user: ${userId}`);
+            } catch (e: any) {
+              console.log(`[GraphQL Context] Token verification failed: ${e.message}`);
               userId = null;
             }
+          } else {
+            console.log(`[GraphQL Context] No token found in request`);
           }
 
 

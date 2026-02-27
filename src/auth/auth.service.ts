@@ -13,7 +13,7 @@ export type JwtUser = { userId: string };
 
 @Injectable()
 export class AuthService {
-  private readonly AUTH_TOKEN_TTL_MS = 1000 * 60 * 15; // 15 minutes
+  private readonly AUTH_TOKEN_TTL_MS = 1000 * 60 * 1; // 1 minute
 
   constructor(
     private readonly jwt: JwtService,
@@ -22,23 +22,29 @@ export class AuthService {
   ) {}
 
   async verifyToken(token: string): Promise<JwtUser> {
-    const payload = this.jwt.verify<AuthPayloadType>(token);
-    const userId = String(payload?.sub ?? payload?.userId ?? '');
-    if (!userId) throw new UnauthenticatedError('Token payload missing subject');
+    try {
+      console.log(`[AuthService] Verifying token: ${token.slice(0, 10)}...`);
+      const payload = this.jwt.verify<AuthPayloadType>(token);
+      const userId = String(payload?.sub ?? payload?.userId ?? '');
+      if (!userId) throw new UnauthenticatedError('Token payload missing subject');
 
-    // Server-side invalidation check
-    const user = await this.usersService.getById(userId);
-    if (!user) throw new UnauthenticatedError('User not found');
+      // Server-side invalidation check
+      const user = await this.usersService.getById(userId);
+      if (!user) throw new UnauthenticatedError('User not found');
 
-    if (user.lastLogoutAt && payload.iat) {
-      // payload.iat is in seconds, lastLogoutAt is a Date
-      const issuedAtMs = payload.iat * 1000;
-      if (issuedAtMs < user.lastLogoutAt.getTime()) {
-        throw new UnauthenticatedError('Token invalidated by logout');
+      if (user.lastLogoutAt && payload.iat) {
+        // payload.iat is in seconds, lastLogoutAt is a Date
+        const issuedAtMs = payload.iat * 1000;
+        if (issuedAtMs < user.lastLogoutAt.getTime()) {
+          throw new UnauthenticatedError('Token invalidated by logout');
+        }
       }
-    }
 
-    return { userId };
+      return { userId };
+    } catch (err: any) {
+      if (err instanceof UnauthenticatedError) throw err;
+      throw new UnauthenticatedError('Invalid or expired token');
+    }
   }
 
 
@@ -122,7 +128,7 @@ export class AuthService {
   issueTokens(userId: string, rememberMe: boolean = false) {
     const accessToken = this.jwt.sign(
       { sub: userId, userId },
-      { expiresIn: '15m' }
+      { expiresIn: '1m' }
     );
     const refreshToken = this.jwt.sign(
       { sub: userId, userId, isRefresh: true, rememberMe },
@@ -135,9 +141,7 @@ export class AuthService {
     try {
       const payload = this.jwt.verify<AuthPayloadType & { isRefresh?: boolean; rememberMe?: boolean }>(token);
       if (!payload.isRefresh) throw new UnauthenticatedError('Invalid refresh token');
-      
-      // [todo]: only users who ticked the remember me checkbox during auth will their tokens refresh
-      if (!payload.rememberMe) throw new UnauthenticatedError('Refresh disabled (remember me not selected)');
+      if (!payload.rememberMe) throw new UnauthenticatedError('Session refresh disabled');
 
       const userId = String(payload.sub ?? payload.userId ?? '');
       if (!userId) throw new UnauthenticatedError('Token payload missing subject');
@@ -145,7 +149,8 @@ export class AuthService {
       const user = await this.usersService.getById(userId);
       if (!user) throw new UnauthenticatedError('User not found');
 
-      return this.issueTokens(userId, true); // Keep rememberMe as true
+      const tokens = this.issueTokens(userId, true); // Keep rememberMe as true
+      return { ...tokens, userId };
     } catch (err: any) {
       if (err instanceof UnauthenticatedError) throw err;
       throw new UnauthenticatedError('Refresh token expired or invalid');
