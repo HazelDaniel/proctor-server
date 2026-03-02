@@ -1,4 +1,4 @@
-import { Resolver, Query, Mutation, Args, Parent } from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args, Parent, Int } from '@nestjs/graphql';
 import { ToolRegistry } from 'src/tools/registry';
 import { DocumentRegistry } from 'src/document-registry/document-registry.service';
 import { ToolInstanceService } from 'src/toolinstance/toolinstance.service';
@@ -12,6 +12,7 @@ import {
   ToolInstanceInvite,
   ToolInstanceMember,
   ValidationResult,
+  PaginatedToolInstances,
 } from '../types';
 import { CurrentUserId } from 'src/api/v1/graphql/utils/decorators/current-user-id';
 import { InvitesService } from 'src/invites/invites.service';
@@ -36,19 +37,39 @@ export class ToolInstanceResolver {
     private readonly users: UsersService,
   ) {}
 
-  @Query(() => [ToolInstance])
+  @Query(() => PaginatedToolInstances)
   @UseGuards(SignedInGuard)
   async toolInstances(
     @Args('toolType', { nullable: true }) toolType: string,
+    @Args('sortBy', { nullable: true }) sortBy: string,
+    @Args('page', { type: () => Int, nullable: true }) page: number,
+    @Args('limit', { type: () => Int, nullable: true }) limit: number,
     @CurrentUserId() userId: string,
   ) {
-    const instances = await this.toolInstanceService.listForUser(userId, toolType);
-    return instances.map((inst) => ({
-      ...inst,
-      ownerId: inst.ownerUserId,
-      name: inst.name,
-      lastModified: String(inst.lastModified),
-    }));
+    const sort = (sortBy === 'popular' ? 'popular' : 'recent') as 'recent' | 'popular';
+    const pageNum = page && page > 0 ? page : 1;
+    const limitNum = limit && limit > 0 ? limit : 10;
+
+    const result = await this.toolInstanceService.listForUserPaginated(
+      userId,
+      sort,
+      pageNum,
+      limitNum,
+    );
+
+    return {
+      items: result.items.map((inst) => ({
+        ...inst,
+        ownerId: inst.ownerUserId,
+        name: inst.name,
+        lastModified: String(inst.lastModified),
+        lastAccessedAt: inst.lastAccessedAt ? String(inst.lastAccessedAt) : undefined,
+        accessCount: inst.accessCount ?? 0,
+      })),
+      totalCount: result.totalCount,
+      totalPages: result.totalPages,
+      currentPage: result.currentPage,
+    };
   }
 
   @Query(() => ToolInstance, { nullable: true })
@@ -407,6 +428,16 @@ export class ToolInstanceResolver {
     if (!email) throw new NotFoundError('User email');
 
     return this.invites.declineInvite(inviteId, email);
+  }
+
+  @Mutation(() => Boolean)
+  @UseGuards(SignedInGuard)
+  async recordToolAccess(
+    @Args('instanceId') instanceId: string,
+    @CurrentUserId() userId: string,
+  ) {
+    await this.toolInstanceService.recordAccess(userId, instanceId);
+    return true;
   }
 }
 

@@ -10,6 +10,8 @@ export class ToolInstance {
   @Field(() => ID) ownerId!: string;
   @Field() name!: string;
   @Field() lastModified!: string;
+  @Field({ nullable: true }) lastAccessedAt?: string;
+  @Field(() => Int, { nullable: true }) accessCount?: number;
 }
 
 
@@ -134,5 +136,13 @@ export class ChatMessage {
 export class AuthResult {
   @Field() token!: string;
   @Field(() => User) user!: User;
+}
+
+@ObjectType()
+export class PaginatedToolInstances {
+  @Field(() => [ToolInstance]) items!: ToolInstance[];
+  @Field(() => Int) totalCount!: number;
+  @Field(() => Int) totalPages!: number;
+  @Field(() => Int) currentPage!: number;
 }
 

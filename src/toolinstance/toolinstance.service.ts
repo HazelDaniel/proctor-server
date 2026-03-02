@@ -1,11 +1,13 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { and, inArray, isNotNull, isNull, count } from 'drizzle-orm';
-import { eq } from 'drizzle-orm';
+import { and, inArray, isNotNull, isNull, count, or, sql } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import {
   documents,
   toolInstanceMembers,
   toolInstances,
+  toolAccess,
+  users,
 } from 'src/db/drivers/drizzle/schema';
 import { ToolRegistry } from 'src/tools/registry';
 import { NotFoundError, PermissionDeniedError } from '../common/errors/domain-errors';
@@ -15,14 +17,38 @@ import type { DB } from 'src/db/db.provider';
 import { DocumentRegistry } from 'src/document-registry/document-registry.service';
 import { NotificationService } from 'src/notifications/notification.service';
 
+interface PaginatedResult<T> {
+  items: T[];
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+}
+
+function paginate<T>(items: T[], page: number, limit: number): PaginatedResult<T> {
+  const totalCount = items.length;
+  const totalPages = Math.ceil(totalCount / limit);
+  const offset = (page - 1) * limit;
+  const paginatedItems = items.slice(offset, offset + limit);
+
+  return {
+    items: paginatedItems,
+    totalCount,
+    totalPages,
+    currentPage: page,
+  };
+}
+
 @Injectable()
 export class ToolInstanceService {
+  private readonly logger: Logger;
   constructor(
     private readonly toolRegistry: ToolRegistry,
     @Inject(DB_PROVIDER) private readonly db: DB,
     private readonly documentRegistry: DocumentRegistry,
     private readonly notificationService: NotificationService,
-  ) {}
+  ) {
+    this.logger = new Logger(ToolInstanceService.name);
+  }
 
   async getMemberCount(instanceId: string): Promise<number> {
     const rows = await this.db
@@ -385,5 +411,132 @@ export class ToolInstanceService {
     }
 
     return true;
+  }
+
+  async recordAccess(userId: string, instanceId: string) {
+    const existing = await this.db
+      .select()
+      .from(toolAccess)
+      .where(
+        and(
+          eq(toolAccess.userId, userId),
+          eq(toolAccess.instanceId, instanceId),
+        ),
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      await this.db
+        .update(toolAccess)
+        .set({
+          lastAccessedAt: new Date(),
+          accessCount: existing[0].accessCount + 1,
+        })
+        .where(
+          and(
+            eq(toolAccess.userId, userId),
+            eq(toolAccess.instanceId, instanceId),
+          ),
+        );
+    } else {
+      await this.db.insert(toolAccess).values({
+        userId,
+        instanceId,
+        lastAccessedAt: new Date(),
+        accessCount: 1,
+      });
+    }
+  }
+
+  async listForUserPaginated(
+    userId: string,
+    sortBy: 'recent' | 'popular' = 'recent',
+    page: number = 1,
+    limit: number = 10,
+  ): Promise<{
+    items: (typeof toolInstances.$inferSelect & { lastAccessedAt: Date; accessCount: number })[];
+    totalCount: number;
+    totalPages: number;
+    currentPage: number;
+  }> {
+    const offset = (page - 1) * limit;
+
+    const memberRows = await this.db
+      .select({ instanceId: toolInstanceMembers.instanceId })
+      .from(toolInstanceMembers)
+      .where(eq(toolInstanceMembers.userId, userId));
+
+    const memberInstanceIds = memberRows.map(r => r.instanceId);
+    
+    // Get all instance IDs (only active ones)
+    const allInstanceIds = await this.db
+      .select({ id: toolInstances.id })
+      .from(toolInstances)
+      .where(
+        and(
+          isNull(toolInstances.archivedAt),
+          or(
+            eq(toolInstances.ownerUserId, userId),
+            memberInstanceIds.length > 0 ? inArray(toolInstances.id, memberInstanceIds) : undefined
+          )
+        )
+      );
+
+    const instanceIdList = allInstanceIds.map(i => i.id);
+
+    if (instanceIdList.length === 0) {
+      return paginate([], page, limit);
+    }
+
+    // Get total count
+    const totalCount = instanceIdList.length;
+    const totalPages = Math.ceil(totalCount / limit);
+
+    // Build the orderBy clause
+    const orderByClause = sortBy === 'popular' 
+      ? [sql`${toolAccess.accessCount} desc nulls last`, desc(toolInstances.createdAt)]
+      : [sql`${toolAccess.lastAccessedAt} desc nulls last`, desc(toolInstances.createdAt)];
+
+    // Query with LEFT JOIN to toolAccess and users
+    const items = await this.db
+      .select({
+        id: toolInstances.id,
+        toolType: toolInstances.toolType,
+        docId: toolInstances.docId,
+        ownerUserId: toolInstances.ownerUserId,
+        name: toolInstances.name,
+        createdAt: toolInstances.createdAt,
+        lastModified: toolInstances.lastModified,
+        archivedAt: toolInstances.archivedAt,
+        lastAccessedAt: toolAccess.lastAccessedAt,
+        accessCount: toolAccess.accessCount,
+      })
+      .from(toolInstances)
+      .leftJoin(
+        toolAccess,
+        and(
+          eq(toolAccess.instanceId, toolInstances.id),
+          eq(toolAccess.userId, userId)
+        )
+      )
+      .where(inArray(toolInstances.id, instanceIdList))
+      .orderBy(...orderByClause)
+      .limit(limit)
+      .offset(offset);
+
+    const formattedItems = items.map(item => ({
+      ...item,
+      lastAccessedAt: item.lastAccessedAt ?? item.createdAt,
+      accessCount: item.accessCount ?? 0,
+    }));
+
+    // this.logger.warn('[Tool instance Resolver]: items are', formattedItems);
+
+    return {
+      items: formattedItems,
+      totalCount,
+      totalPages,
+      currentPage: page,
+    };
   }
 }

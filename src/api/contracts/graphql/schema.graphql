@@ -3,6 +3,19 @@ type ToolInstance {
   toolType: String!
   docId: ID!
   createdAt: String!
+  archivedAt: String
+  ownerId: ID!
+  name: String!
+  lastModified: String!
+  lastAccessedAt: String
+  accessCount: Int
+}
+
+type PaginatedToolInstances {
+  items: [ToolInstance!]!
+  totalCount: Int!
+  totalPages: Int!
+  currentPage: Int!
 }
 
 type ValidationError {
@@ -30,7 +43,7 @@ type AuthResult {
 }
 
 type Query {
-  toolInstances(toolType: String): [ToolInstance!]!
+  toolInstances(toolType: String, sortBy: String, page: Int, limit: Int): PaginatedToolInstances!
 }
 
 type Mutation {
@@ -39,6 +52,7 @@ type Mutation {
   compileToolInstance(instanceId: ID!): String
   requestLogin(email: String!): Boolean!
   verifyLogin(email: String!, token: String!): AuthResult!
+  recordToolAccess(instanceId: ID!): Boolean!
 }
 
 extend type Mutation {

@@ -224,3 +224,23 @@ export const chatMessages = pgTable(
     ),
   }),
 );
+
+export const toolAccess = pgTable(
+  'user_tool_instance_accesses',
+  {
+    userId: text('user_id').notNull(),
+    instanceId: uuid('instance_id')
+      .notNull()
+      .references(() => toolInstances.id, { onDelete: 'cascade' }),
+    lastAccessedAt: timestamp('last_accessed_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    accessCount: bigint('access_count', { mode: 'number' }).notNull().default(1),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.userId, t.instanceId] }),
+    userIdx: index('tool_access_user_idx').on(t.userId),
+    lastAccessIdx: index('tool_access_last_accessed_idx').on(t.userId, t.lastAccessedAt),
+    freqIdx: index('tool_access_freq_idx').on(t.userId, t.accessCount),
+  }),
+);
