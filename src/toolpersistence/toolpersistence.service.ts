@@ -47,6 +47,18 @@ export class ToolPersistenceService {
       applyUpdate(doc, row.update);
     }
 
+    // Diagnostic: log what the persisted doc contains
+    const groupNodesMap = doc.getMap('groupNodes');
+    const edgesMap = doc.getMap('edges');
+    console.log(`[DIAG:PERSISTED] Loaded doc ${docId}:`, {
+      snapshotSeq: seq,
+      incrementalUpdates: updates.length,
+      finalSeq: updates.at(-1)?.seq ?? seq,
+      groupNodeKeys: Array.from(groupNodesMap.keys()),
+      groupNodeCount: groupNodesMap.size,
+      edgeCount: edgesMap.size,
+    });
+
     return { doc, seq: updates.at(-1)?.seq ?? seq };
   }
 
