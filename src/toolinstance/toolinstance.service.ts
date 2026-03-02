@@ -209,6 +209,10 @@ export class ToolInstanceService {
     const docId = randomUUID();
 
     const [row] = await this.db.insert(toolInstances).values({ id, toolType, docId, ownerUserId }).returning();
+    
+    // Record initial access for the owner so it shows up in "recent"
+    await this.recordAccess(ownerUserId, id);
+
     return row;
   }
 
