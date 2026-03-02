@@ -44,6 +44,7 @@ type AuthResult {
 
 type Query {
   toolInstances(toolType: String, sortBy: String, page: Int, limit: Int): PaginatedToolInstances!
+  searchToolInstances(query: String!): [ToolInstance!]!
 }
 
 type Mutation {

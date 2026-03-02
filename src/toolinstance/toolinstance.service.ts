@@ -1,6 +1,6 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { and, inArray, isNotNull, isNull, count, or, sql } from 'drizzle-orm';
+import { and, inArray, isNotNull, isNull, count, or, sql, ilike } from 'drizzle-orm';
 import { eq, desc } from 'drizzle-orm';
 import {
   documents,
@@ -450,6 +450,51 @@ export class ToolInstanceService {
         accessCount: 1,
       });
     }
+  }
+
+  async searchForUser(userId: string, query: string) {
+    const memberRows = await this.db
+      .select({ instanceId: toolInstanceMembers.instanceId })
+      .from(toolInstanceMembers)
+      .where(eq(toolInstanceMembers.userId, userId));
+
+    const memberInstanceIds = memberRows.map(r => r.instanceId);
+
+    const instances = await this.db
+      .select({
+        id: toolInstances.id,
+        toolType: toolInstances.toolType,
+        docId: toolInstances.docId,
+        ownerUserId: toolInstances.ownerUserId,
+        name: toolInstances.name,
+        createdAt: toolInstances.createdAt,
+        lastModified: toolInstances.lastModified,
+        archivedAt: toolInstances.archivedAt,
+        lastAccessedAt: toolAccess.lastAccessedAt,
+        accessCount: toolAccess.accessCount,
+      })
+      .from(toolInstances)
+      .leftJoin(
+        toolAccess,
+        and(
+          eq(toolAccess.instanceId, toolInstances.id),
+          eq(toolAccess.userId, userId)
+        )
+      )
+      .where(
+        and(
+          isNull(toolInstances.archivedAt),
+          ilike(toolInstances.name, `%${query}%`),
+          or(
+            eq(toolInstances.ownerUserId, userId),
+            memberInstanceIds.length > 0 ? inArray(toolInstances.id, memberInstanceIds) : undefined
+          )
+        )
+      )
+      .orderBy(sql`${toolAccess.lastAccessedAt} desc nulls last`, desc(toolInstances.createdAt))
+      .limit(20);
+
+    return instances;
   }
 
   async listForUserPaginated(

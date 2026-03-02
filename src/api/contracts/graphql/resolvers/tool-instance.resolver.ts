@@ -72,6 +72,25 @@ export class ToolInstanceResolver {
     };
   }
 
+  @Query(() => [ToolInstance])
+  @UseGuards(SignedInGuard)
+  async searchToolInstances(
+    @Args('query') query: string,
+    @CurrentUserId() userId: string,
+  ) {
+    const instances = await this.toolInstanceService.searchForUser(userId, query);
+    return instances.map((inst) => ({
+      ...inst,
+      createdAt: String(inst.createdAt),
+      archivedAt: inst.archivedAt ? String(inst.archivedAt) : undefined,
+      ownerId: inst.ownerUserId,
+      name: inst.name,
+      lastModified: String(inst.lastModified),
+      lastAccessedAt: inst.lastAccessedAt ? String(inst.lastAccessedAt) : undefined,
+      accessCount: inst.accessCount ?? 0,
+    }));
+  }
+
   @Query(() => ToolInstance, { nullable: true })
   @UseGuards(SignedInGuard, ToolInstanceAccessGuard)
   async toolInstance(
