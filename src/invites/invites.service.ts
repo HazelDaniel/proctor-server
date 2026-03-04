@@ -10,6 +10,7 @@ import { normalizeEmail } from '../users/users.service';
 import {
   NotFoundError,
   PermissionDeniedError,
+  ResourceConflictError,
   ValidationError,
 } from '../common/errors/domain-errors';
 import { sha256Hex, newToken } from '../common/crypto';
@@ -49,27 +50,41 @@ export class InvitesService {
     const ownerEmail = ownerRows[0].email;
 
     const email = normalizeEmail(inviteeEmail);
+    
+    // Prevent multiple pending invites for same email+instance
+    const existingInvite = await this.db
+      .select({ id: toolInstanceInvites.id })
+      .from(toolInstanceInvites)
+      .where(
+        and(
+          eq(toolInstanceInvites.instanceId, instanceId),
+          eq(toolInstanceInvites.inviteeEmail, email),
+          eq(toolInstanceInvites.status, 'pending'),
+        ),
+      )
+      .limit(1);
+
+    if (existingInvite[0]) {
+      throw new ResourceConflictError('invite failed: operation already performed');
+    }
+
     const token = newToken();
     const tokenHash = sha256Hex(token);
 
     const now = new Date();
     const expiresAt = new Date(Date.now() + this.INVITE_TTL_MS);
 
-    // Optional: prevent multiple pending invites for same email+instance
-    // (simple approach: just insert; you can also check existing pending and re-use)
     await this.db.insert(toolInstanceInvites).values({
       id: crypto.randomUUID(),
       instanceId,
       inviteeEmail: email,
-      inviterEmail: ownerEmail, // We should pass ownerEmail to this method now
+      inviterEmail: ownerEmail,
       tokenHash,
       status: 'pending',
       createdByUserId: ownerUserId,
       createdAt: now,
       expiresAt,
     });
-
-    // NOTE: in production, we email the raw token link.
     // but this is okay atm
     // Try to find the invitee user ID to send a notification
     const inviteeRows = await this.db
