@@ -49,15 +49,20 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
 
   const port = process.env.PORT ?? 3000;
-  await app.listen(port, '0.0.0.0');
   
-  const server: Server = app.getHttpServer();
-  
-  // Raw connection logging to see if Railway proxy even hits the container
+  const server = app.getHttpServer();
+
+  // Attach listeners BEFORE starting the server
   server.on('connection', (socket) => {
-    logger.log(`[Connection] New connection from ${socket.remoteAddress}:${socket.remotePort}`);
+    logger.log(`[TCP Connection] New connection from ${socket.remoteAddress}:${socket.remotePort}`);
   });
 
+  server.on('error', (err) => {
+    logger.error(`[Server Error] ${err.message}`);
+  });
+
+  await app.listen(port, '0.0.0.0');
+  
   // Adjust Node.js server timeouts for proxy compatibility
   server.keepAliveTimeout = 65000; 
   server.headersTimeout = 66000;
