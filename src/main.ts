@@ -27,6 +27,19 @@ async function bootstrap() {
   });
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  process.on('SIGTERM', () => {
+    logger.log('SIGTERM signal received: closing Nest application');
+    app.close().then(() => {
+      logger.log('Nest application closed successfully');
+      process.exit(0);
+    });
+  });
+
+  process.on('SIGINT', () => {
+    logger.log('SIGINT signal received');
+    app.close().then(() => process.exit(0));
+  });
   app.set('trust proxy', 1);
   
   // Explicit request logging middleware

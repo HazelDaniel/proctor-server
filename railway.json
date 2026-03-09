@@ -4,9 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "node dist/main",
-    "restartPolicyType": "ON_FAILURE",
-    "healthcheckPath": "/",
-    "healthcheckTimeout": 100
+    "startCommand": "NODE_ENV=production node dist/main",
+    "restartPolicyType": "ON_FAILURE"
   }
 }
