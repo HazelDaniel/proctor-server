@@ -1,3 +1,9 @@
+import 'node:crypto';
+if (!global.crypto) {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  (global as any).crypto = require('node:crypto');
+}
+
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
