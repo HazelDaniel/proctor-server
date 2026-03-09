@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -19,7 +20,8 @@ async function bootstrap() {
     process.exit(1);
   });
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.set('trust proxy', 1);
   
   // Explicit request logging middleware
   app.use((req, res, next) => {
@@ -47,8 +49,15 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
 
   const port = process.env.PORT ?? 3000;
-  const server: Server = await app.listen(port, '0.0.0.0');
+  await app.listen(port, '0.0.0.0');
   
+  const server: Server = app.getHttpServer();
+  
+  // Raw connection logging to see if Railway proxy even hits the container
+  server.on('connection', (socket) => {
+    logger.log(`[Connection] New connection from ${socket.remoteAddress}:${socket.remotePort}`);
+  });
+
   // Adjust Node.js server timeouts for proxy compatibility
   server.keepAliveTimeout = 65000; 
   server.headersTimeout = 66000;
